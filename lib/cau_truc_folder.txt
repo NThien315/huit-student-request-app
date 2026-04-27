@@ -1,0 +1,30 @@
+lib/
+│
+├── core/           # 🎨 (TV1) Chứa các thiết lập chung toàn app
+│   ├── constants.dart  # Chứa các biến cố định (Ví dụ: tên app, kích thước)
+│   └── theme.dart      # Chứa mã màu (Xanh dương, Tím, Đỏ), Font chữ Be Vietnam Pro
+│
+├── models/         # 🧠 (TV3) Định nghĩa cấu trúc dữ liệu
+│   ├── user_model.dart     # Thông tin Sinh viên / Giáo vụ
+│   └── request_model.dart  # Thông tin Đơn yêu cầu (Loại đơn, trạng thái, ngày gửi)
+│
+├── services/       # ⚙️ (TV2) Xử lý logic ngầm và kết nối Database
+│   ├── auth_service.dart   # Đăng nhập, đăng xuất Firebase
+│   └── db_service.dart     # Kéo/Đẩy dữ liệu đơn yêu cầu lên Firestore
+│
+├── state/          # 🔗 (TV3) Quản lý trạng thái (Provider / BLoC)
+│   ├── auth_provider.dart  # Lưu trạng thái "Đang đăng nhập hay chưa?"
+│   └── request_provider.dart # Lưu danh sách đơn để hiển thị lên UI
+│
+├── ui/             # 🖼️ (TV1) Giao diện hiển thị
+│   ├── screens/    # Chứa các Màn hình (Mỗi màn hình 1 file riêng)
+│   │   ├── auth/           # login_screen.dart, forgot_password_screen.dart
+│   │   ├── student/        # home_screen.dart, history_screen.dart...
+│   │   └── staff/          # staff_dashboard.dart, process_request_screen.dart
+│   │
+│   └── widgets/    # Chứa các Component dùng đi dùng lại (Để code không bị dài)
+│       ├── custom_button.dart    # Nút bấm màu Xanh/Tím chuẩn Figma
+│       ├── custom_textfield.dart # Ô nhập liệu bo góc
+│       └── status_badge.dart     # Các tag trạng thái (Đang xử lý, Hoàn thành...)
+│
+└── main.dart       # 🚀 File gốc khởi chạy ứng dụng
