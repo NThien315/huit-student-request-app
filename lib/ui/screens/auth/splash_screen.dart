@@ -1,6 +1,5 @@
 import 'package:flutter/material.dart';
 import 'package:shared_preferences/shared_preferences.dart'; // Import thư viện
-import '../../../core/theme.dart';
 import 'onboarding_screen.dart';
 import 'login_screen.dart';
 
