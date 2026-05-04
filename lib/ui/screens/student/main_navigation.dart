@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:huit_student_request_app/ui/screens/student/create_request_screen.dart';
 import '../../../core/theme.dart';
 import 'home_screen.dart'; 
 import 'history_screen.dart';
@@ -17,7 +18,7 @@ class _MainNavigationState extends State<MainNavigation> {
   final List<Widget> _screens = [
     const HomeScreen(), // Tab 0: Trang chủ giao diện thật
     const HistoryScreen(), // Tab 1: Màn hình Lịch sử thật
-    const Center(child: Text('➕ Màn hình Tạo yêu cầu mới')), // Tab 2
+    const CreateRequestScreen(),
     const Center(child: Text('🔔 Màn hình Thông báo')), // Tab 3
     const Center(child: Text('👤 Màn hình Cá nhân')), // Tab 4
   ];

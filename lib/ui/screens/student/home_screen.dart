@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:huit_student_request_app/ui/screens/student/search_screen.dart';
 import '../../../core/theme.dart';
+import 'create_request_screen.dart';
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -120,8 +121,14 @@ class HomeScreen extends StatelessWidget {
                   AppColors.success, 
                   'Đăng ký\nhọc phần',
                   () {
-                    print("Đã bấm vào Đăng ký học phần");
-                    // TODO: Chuyển sang màn hình form tạo đơn đăng ký học phần
+                    Navigator.push(
+                      context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateRequestScreen(
+                            initialRequestType: 'Đăng ký học phần',
+                          ),
+                        ),
+                    );
                   }
                 ),
                 _buildFeatureItem(
@@ -129,8 +136,14 @@ class HomeScreen extends StatelessWidget {
                   AppColors.success, 
                   'Xin cấp\nbảng điểm',
                   () {
-                    print("Đã bấm vào Xin cấp bảng điểm");
-                    // TODO: Chuyển sang màn hình form tạo đơn xin bảng điểm
+                    Navigator.push(
+                      context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateRequestScreen(
+                            initialRequestType: 'Xin cấp bảng điểm',
+                          ),
+                        ),
+                    );
                   }
                 ),
                 _buildFeatureItem(
@@ -138,8 +151,14 @@ class HomeScreen extends StatelessWidget {
                   AppColors.success, 
                   'Phúc khảo\nđiểm thi',
                   () {
-                    print("Đã bấm vào Phúc khảo điểm thi");
-                    // TODO: Chuyển sang màn hình form tạo đơn phúc khảo điểm thi
+                    Navigator.push(
+                      context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateRequestScreen(
+                            initialRequestType: 'Phúc khảo điểm thi',
+                          ),
+                        ),
+                    );
                   }
                 ),
                 _buildFeatureItem(
@@ -147,8 +166,14 @@ class HomeScreen extends StatelessWidget {
                   AppColors.success, 
                   'Đăng ký\nkhoá luận',
                   () {
-                    print("Đã bấm vào Đăng ký khoá luận");
-                    // TODO: Chuyển sang màn hình form tạo đơn đăng ký khoá luận
+                    Navigator.push(
+                      context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateRequestScreen(
+                            initialRequestType: 'Đăng ký khoá luận',
+                          ),
+                        ),
+                    );
                   }
                 ),
                 _buildFeatureItem(
@@ -156,8 +181,14 @@ class HomeScreen extends StatelessWidget {
                   AppColors.success, 
                   'Xin cấp giấy xác\nnhận sinh viên',
                   () {
-                    print("Đã bấm vào Xin cấp giấy xác nhận sinh viên");
-                    // TODO: Chuyển sang màn hình form tạo đơn xin giấy xác nhận sinh viên
+                    Navigator.push(
+                      context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateRequestScreen(
+                            initialRequestType: 'Xin cấp giấy xác nhận sinh viên',
+                          ),
+                        ),
+                    );
                   }
                 ),
                 _buildFeatureItem(
@@ -165,8 +196,14 @@ class HomeScreen extends StatelessWidget {
                   AppColors.success, 
                   'Xem thêm\n',
                   () {
-                    print("Đã bấm vào Xem thêm");
-                    // TODO: Chuyển sang màn hình form tạo đơn xem thêm
+                    Navigator.push(
+                      context,
+                        MaterialPageRoute(
+                          builder: (context) => const CreateRequestScreen(
+                            initialRequestType: 'Xem thêm',
+                          ),
+                        ),
+                    );
                   }
                 ),
               ],
