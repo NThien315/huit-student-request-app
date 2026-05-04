@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
 import 'home_screen.dart'; 
+import 'history_screen.dart';
 
 class MainNavigation extends StatefulWidget {
   const MainNavigation({super.key});
@@ -15,7 +16,7 @@ class _MainNavigationState extends State<MainNavigation> {
   // Danh sách 5 màn hình
   final List<Widget> _screens = [
     const HomeScreen(), // Tab 0: Trang chủ giao diện thật
-    const Center(child: Text('⏳ Màn hình Lịch sử')), // Tab 1
+    const HistoryScreen(), // Tab 1: Màn hình Lịch sử thật
     const Center(child: Text('➕ Màn hình Tạo yêu cầu mới')), // Tab 2
     const Center(child: Text('🔔 Màn hình Thông báo')), // Tab 3
     const Center(child: Text('👤 Màn hình Cá nhân')), // Tab 4

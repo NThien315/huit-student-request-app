@@ -1,5 +1,5 @@
 name: huit_student_request_app
-description: "A new Flutter project."
+description: "Ứng dụng theo dõi quy trình xử lý yêu cầu của Sinh viên với Khoa CNTT"
 publish_to: 'none'
 version: 0.1.0
 
@@ -19,6 +19,9 @@ dev_dependencies:
 flutter:
   uses-material-design: true
 
+  assets:
+    - assets/icons/
+
 fonts:
   - family: Be Vietnam Pro
     fonts:
@@ -26,3 +29,6 @@ fonts:
      - asset: assets/fonts/BeVietnamPro-Medium.ttf
      - asset: assets/fonts/BeVietnamPro-SemiBold.ttf
      - asset: assets/fonts/BeVietnamPro-Bold.ttf
+
+icons:
+  - asset: assets/icons/app_icon.png

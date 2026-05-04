@@ -116,7 +116,7 @@ class HomeScreen extends StatelessWidget {
               childAspectRatio: 1,
               children: [
                 _buildFeatureItem(
-                  'assets/icons/ic_bang_diem.png', // Đường dẫn ảnh của bạn sau này
+                  'assets/icons/tnc_dkhp.png',
                   AppColors.success, 
                   'Đăng ký\nhọc phần',
                   () {
@@ -125,7 +125,7 @@ class HomeScreen extends StatelessWidget {
                   }
                 ),
                 _buildFeatureItem(
-                  'assets/icons/ic_bang_diem.png', // Đường dẫn ảnh của bạn sau này
+                  'assets/icons/tnc_capbangdiem.png',
                   AppColors.success, 
                   'Xin cấp\nbảng điểm',
                   () {
@@ -134,7 +134,7 @@ class HomeScreen extends StatelessWidget {
                   }
                 ),
                 _buildFeatureItem(
-                  'assets/icons/ic_bang_diem.png', // Đường dẫn ảnh của bạn sau này
+                  'assets/icons/tnc_pkdiemthi.png', 
                   AppColors.success, 
                   'Phúc khảo\nđiểm thi',
                   () {
@@ -143,7 +143,7 @@ class HomeScreen extends StatelessWidget {
                   }
                 ),
                 _buildFeatureItem(
-                  'assets/icons/ic_bang_diem.png', // Đường dẫn ảnh của bạn sau này
+                  'assets/icons/tnc_dkkhoaluan.png',
                   AppColors.success, 
                   'Đăng ký\nkhoá luận',
                   () {
@@ -152,7 +152,7 @@ class HomeScreen extends StatelessWidget {
                   }
                 ),
                 _buildFeatureItem(
-                  'assets/icons/ic_bang_diem.png', // Đường dẫn ảnh của bạn sau này
+                  'assets/icons/tnc_xnsv.png',
                   AppColors.success, 
                   'Xin cấp giấy xác\nnhận sinh viên',
                   () {
@@ -161,7 +161,7 @@ class HomeScreen extends StatelessWidget {
                   }
                 ),
                 _buildFeatureItem(
-                  'assets/icons/ic_bang_diem.png', // Đường dẫn ảnh của bạn sau này
+                  'assets/icons/tnc_xemthem.png', 
                   AppColors.success, 
                   'Xem thêm\n',
                   () {
@@ -226,10 +226,10 @@ class HomeScreen extends StatelessWidget {
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
             // DÙNG ẢNH FIGMA CỦA BẠN Ở ĐÂY
-            // Image.asset(assetPath, width: 42, height: 42), 
+            Image.asset(assetPath, width: 42, height: 42), 
             
             // Tạm thời mình vẫn để Icon mặc định để app bạn không bị lỗi khi chưa có ảnh
-            Icon(Icons.dashboard, color: color, size: 42), 
+            //Icon(Icons.dashboard, color: color, size: 42), 
             
             const SizedBox(height: 10),
             Text(

@@ -26,7 +26,9 @@ class AppColors {
   static const Color gray100 = Color(0xFFF3F4F6); // Nền thẻ xám
   static const Color gray200 = Color(0xFFE5E7EB); // Viền (Border)
   static const Color gray500 = Color(0xFF6B7280); // Text phụ
-  static const Color gray900 = Color(0xFF111827); // Text chính (Tiêu đề)
+  static const Color gray900 = Color(0xFF111827);
+
+  static Color? get gray300 => null; // Text chính (Tiêu đề)
 }
 
 class AppTheme {

@@ -1,8 +1,6 @@
 import 'package:flutter/material.dart';
-import 'package:huit_student_request_app/ui/screens/student/home_screen.dart';
 import 'package:huit_student_request_app/ui/screens/student/main_navigation.dart';
 import 'core/theme.dart';
-import 'ui/screens/auth/splash_screen.dart';
 
 void main() {
   runApp(const MyApp());
