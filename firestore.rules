@@ -1,0 +1,94 @@
+// firestore.rules
+// TV2 — Thiết kế Security Rules cho Firestore (Task 2.2 / 3.2)
+// Deploy: firebase deploy --only firestore:rules
+
+rules_version = '2';
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    // ── Helper functions ───────────────────────────────────────────────────────
+
+    // Kiểm tra đã đăng nhập chưa
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    // Lấy role của người dùng hiện tại từ collection users
+    function getRole() {
+      return get(/databases/$(database)/documents/users/$(request.auth.uid)).data.role;
+    }
+
+    function isStudent() {
+      return isSignedIn() && getRole() == 'student';
+    }
+
+    function isStaff() {
+      return isSignedIn() && getRole() == 'staff';
+    }
+
+    function isAdmin() {
+      return isSignedIn() && getRole() == 'admin';
+    }
+
+    // Giáo vụ hoặc Admin đều có thể xử lý yêu cầu
+    function isStaffOrAdmin() {
+      return isSignedIn() && (getRole() == 'staff' || getRole() == 'admin');
+    }
+
+    // Kiểm tra request data có đầy đủ trường bắt buộc không
+    function validRequestData() {
+      return request.resource.data.keys().hasAll([
+        'studentUid', 'studentName', 'studentId',
+        'categoryId', 'categoryName', 'reason',
+        'status', 'createdAt', 'updatedAt'
+      ]);
+    }
+
+    // ── Collection: users ──────────────────────────────────────────────────────
+    // Mỗi user chỉ đọc được thông tin của chính mình
+    // Giáo vụ/Admin đọc được thông tin tất cả user
+    // Chỉ Admin mới tạo được tài khoản mới
+    match /users/{uid} {
+      allow read: if isSignedIn() && (
+        request.auth.uid == uid || isStaffOrAdmin()
+      );
+      allow create: if isAdmin();
+      allow update: if isSignedIn() && (
+        request.auth.uid == uid  // Tự cập nhật FCM token, display name
+        || isAdmin()             // Admin chỉnh sửa account
+      );
+      allow delete: if isAdmin();
+    }
+
+    // ── Collection: requestCategories ─────────────────────────────────────────
+    // Tất cả user đã đăng nhập đọc được danh mục
+    // Chỉ Admin mới CRUD được
+    match /requestCategories/{categoryId} {
+      allow read: if isSignedIn();
+      allow create, update, delete: if isAdmin();
+    }
+
+    // ── Collection: requests ──────────────────────────────────────────────────
+    match /requests/{requestId} {
+      // Read: sinh viên chỉ đọc yêu cầu của chính mình; Giáo vụ/Admin đọc tất cả
+      allow read: if isSignedIn() && (
+        isStaffOrAdmin() ||
+        resource.data.studentUid == request.auth.uid
+      );
+
+      // Create: chỉ Sinh viên mới tạo được, và phải tạo cho chính mình
+      allow create: if isStudent()
+        && request.resource.data.studentUid == request.auth.uid
+        && request.resource.data.status == 'pending'
+        && validRequestData();
+
+      // Update: chỉ Giáo vụ/Admin mới được cập nhật trạng thái
+      // Sinh viên KHÔNG được tự đổi trạng thái yêu cầu của mình
+      allow update: if isStaffOrAdmin();
+
+      // Delete: không ai được xóa yêu cầu (archive only)
+      allow delete: if false;
+    }
+  }
+}
