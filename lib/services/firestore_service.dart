@@ -213,6 +213,31 @@ class FirestoreService {
   }
 
   // ════════════════════════════════════════════════════════════════════════════
+  // THỐNG KÊ (Dashboard)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /// Đếm số lượng yêu cầu theo từng trạng thái
+  Future<Map<RequestStatus, int>> getRequestStats() async {
+    final stats = <RequestStatus, int>{};
+    for (final status in RequestStatus.values) {
+      stats[status] = 0;
+    }
+
+    final snapshot = await _db.collection('requests').get();
+
+    for (final doc in snapshot.docs) {
+      final statusStr = doc.data()['status'] as String?;
+      final status = RequestStatus.values.firstWhere(
+        (s) => s.name == statusStr,
+        orElse: () => RequestStatus.pending,
+      );
+      stats[status] = (stats[status] ?? 0) + 1;
+    }
+
+    return stats;
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
   // SEED DATA — Tạo dữ liệu mẫu ban đầu (chỉ chạy 1 lần khi deploy)
   // ════════════════════════════════════════════════════════════════════════════
   Future<void> seedCategories() async {
