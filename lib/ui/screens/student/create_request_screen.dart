@@ -66,7 +66,7 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    // 1. Gợi ý Auto-fill xịn xò
+                    // 1. Gợi ý Auto-fill
                     Container(
                       padding: const EdgeInsets.all(12),
                       decoration: BoxDecoration(color: AppColors.primarySV.withOpacity(0.1), borderRadius: BorderRadius.circular(8)),
