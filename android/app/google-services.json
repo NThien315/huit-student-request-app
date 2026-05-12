@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "983678184026",
+    "project_id": "huit-student-request-app",
+    "storage_bucket": "huit-student-request-app.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:983678184026:android:a962d2ab305a5227a7c663",
+        "android_client_info": {
+          "package_name": "com.example.huit_student_request_app"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyBC_KDE77OY0t_D5lNdJoEnvmcGthkRH90"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
