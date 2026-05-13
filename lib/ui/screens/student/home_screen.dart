@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:huit_student_request_app/ui/screens/student/search_screen.dart';
 import '../../../core/theme.dart';
 import 'create_request_screen.dart';
+import 'package:provider/provider.dart';
+import '../../../state/auth_provider.dart';
+import '../../../services/db_service.dart';
+import '../../../models/request_model.dart'; 
 
 class HomeScreen extends StatelessWidget {
   const HomeScreen({super.key});
@@ -50,28 +54,40 @@ class HomeScreen extends StatelessWidget {
             ),
             const SizedBox(height: 24),
 
-            // 2. Thẻ Welcome
-            Container(
-              width: double.infinity,
-              padding: const EdgeInsets.all(20),
-              decoration: BoxDecoration(
-                color: AppColors.lightSV,
-                borderRadius: BorderRadius.circular(20), // Bo góc
-              ),
-              child: const Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Xin chào, Nguyễn Văn A',
-                    style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.gray900),
+            // 2. Thẻ Welcome (Đã kết nối Database)
+            Builder(
+              builder: (context) {
+                // Rút thẳng thông tin User từ "bộ não" AuthProvider
+                final authState = context.watch<AuthProvider>();
+                final user = authState.currentUser;
+
+                // Chuẩn bị dữ liệu (Nếu lỡ mạng chậm chưa lấy được thì để mặc định)
+                final String name = user?.displayName ?? 'Sinh viên';
+                final String studentId = user?.studentId ?? 'Đang cập nhật...';
+
+                return Container(
+                  width: double.infinity,
+                  padding: const EdgeInsets.all(20),
+                  decoration: BoxDecoration(
+                    color: AppColors.lightSV,
+                    borderRadius: BorderRadius.circular(20), // Vẫn giữ nguyên bo góc tuyệt đẹp của bạn
                   ),
-                  SizedBox(height: 6),
-                  Text(
-                    'MSSV: 2001234567',
-                    style: TextStyle(fontSize: 14, color: AppColors.gray500),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Text(
+                        'Xin chào, $name', // Lấy tên thật từ biến
+                        style: const TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.gray900),
+                      ),
+                      const SizedBox(height: 6),
+                      Text(
+                        'MSSV: $studentId', // Lấy MSSV thật từ biến
+                        style: const TextStyle(fontSize: 14, color: AppColors.gray500),
+                      ),
+                    ],
                   ),
-                ],
-              ),
+                );
+              }
             ),
             const SizedBox(height: 18),
 
@@ -81,24 +97,47 @@ class HomeScreen extends StatelessWidget {
               style: TextStyle(fontSize: 17, fontWeight: FontWeight.bold, color: AppColors.gray900),
             ),
             const SizedBox(height: 16),
-            Column(
-              children: [
-                Row(
+            
+            // Dùng StreamBuilder để đếm số lượng đơn
+            StreamBuilder<List<RequestModel>>(
+              stream: DbService().getStudentRequests(context.read<AuthProvider>().currentUser?.uid ?? ''),
+              builder: (context, snapshot) {
+                // Khởi tạo các biến đếm mặc định là 0
+                int pendingCount = 0;
+                int processingCount = 0;
+                int completedCount = 0;
+                int rejectedCount = 0;
+
+                // Nếu load được dữ liệu thật thì tiến hành đếm
+                if (snapshot.hasData && snapshot.data != null) {
+                  final list = snapshot.data!;
+                  pendingCount = list.where((r) => r.status.name == 'pending').length;
+                  processingCount = list.where((r) => r.status.name == 'processing').length;
+                  completedCount = list.where((r) => r.status.name == 'completed').length;
+                  rejectedCount = list.where((r) => r.status.name == 'rejected').length;
+                }
+
+                // Vẽ giao diện CŨ CỦA BẠN với con số MỚI
+                return Column(
                   children: [
-                    _buildStatCard('Chờ tiếp nhận', 1, AppColors.lightSV, AppColors.primarySV),
-                    const SizedBox(width: 12),
-                    _buildStatCard('Đang xử lý', 1, AppColors.warningLight, AppColors.warning),
+                    Row(
+                      children: [
+                        _buildStatCard('Chờ tiếp nhận', pendingCount, AppColors.lightSV, AppColors.primarySV),
+                        const SizedBox(width: 12),
+                        _buildStatCard('Đang xử lý', processingCount, AppColors.warningLight, AppColors.warning),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        _buildStatCard('Hoàn thành', completedCount, AppColors.successLight, AppColors.success),
+                        const SizedBox(width: 12),
+                        _buildStatCard('Đã huỷ', rejectedCount, AppColors.dangerLight, AppColors.danger),
+                      ],
+                    ),
                   ],
-                ),
-                const SizedBox(height: 12),
-                Row(
-                  children: [
-                    _buildStatCard('Hoàn thành', 1, AppColors.successLight, AppColors.success),
-                    const SizedBox(width: 12),
-                    _buildStatCard('Đã huỷ', 1, AppColors.dangerLight, AppColors.danger),
-                  ],
-                ),
-              ],
+                );
+              },
             ),
             const SizedBox(height: 18),
 

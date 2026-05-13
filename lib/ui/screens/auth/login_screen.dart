@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
 import '../../widgets/custom_button.dart';
 import '../../widgets/custom_textfield.dart';
+import '../../../services/db_service.dart';
+
+import 'package:provider/provider.dart';
+import '../../../state/auth_provider.dart';
 
 class LoginScreen extends StatefulWidget {
   const LoginScreen({super.key});
@@ -13,8 +17,16 @@ class LoginScreen extends StatefulWidget {
 class _LoginScreenState extends State<LoginScreen> {
   // Biến lưu trạng thái đang chọn Sinh viên (true) hay Giáo vụ (false)
   bool isStudent = true; 
+  // Khai báo bộ điều khiển cho các ô nhập liệu
+  final TextEditingController _emailController = TextEditingController();
+  final TextEditingController _passwordController = TextEditingController();
 
   @override
+  void dispose() {
+    _emailController.dispose();
+    _passwordController.dispose();
+    super.dispose();
+  }
   Widget build(BuildContext context) {
     return Scaffold(
       backgroundColor: AppColors.white,
@@ -112,12 +124,14 @@ class _LoginScreenState extends State<LoginScreen> {
 
               // Ô nhập liệu tự động đổi text theo Role
               CustomTextField(
+                controller: _emailController, // 👉 THÊM DÒNG NÀY VÀO ĐÂY
                 label: isStudent ? 'Mã số sinh viên' : 'Mã cán bộ / Email',
                 hintText: isStudent ? 'Nhập mã số sinh viên' : 'Nhập mã cán bộ hoặc email',
                 prefixIcon: Icons.person_outline,
               ),
               
-              const CustomTextField(
+              CustomTextField(
+                controller: _passwordController, // 👉 THÊM DÒNG NÀY VÀO ĐÂY
                 label: 'Mật khẩu',
                 hintText: 'Nhập mật khẩu',
                 isPassword: true,
@@ -151,9 +165,44 @@ class _LoginScreenState extends State<LoginScreen> {
               CustomButton(
                 text: 'Đăng nhập',
                 backgroundColor: isStudent ? AppColors.primarySV : AppColors.primaryGV,
-                onPressed: () {
-                  // TODO: Xử lý logic đăng nhập với TV2
-                  print('Đang đăng nhập với quyền: ${isStudent ? "Sinh viên" : "Giáo vụ"}');
+                onPressed: () async {
+                  // Lấy dữ liệu từ ô nhập
+                  String inputId = _emailController.text.trim();
+                  final password = _passwordController.text.trim();
+
+                  // Validate cơ bản
+                  if (inputId.isEmpty || password.isEmpty) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      const SnackBar(content: Text('Vui lòng nhập đầy đủ thông tin')),
+                    );
+                    return;
+                  }
+
+                  // Nếu người dùng chỉ nhập số (MSSV), tự động thêm đuôi email trường vào
+                  // Nếu họ đã nhập sẵn email (có chữ @) thì giữ nguyên
+                  String finalEmail = inputId;
+                  if (!inputId.contains('@')) {
+                    finalEmail = '$inputId@hdpe.edu.vn'; 
+                  }
+
+                  // Hiển thị loading
+                  ScaffoldMessenger.of(context).showSnackBar(
+                    const SnackBar(content: Text('Đang đăng nhập...'), duration: Duration(seconds: 1)),
+                  );
+
+                  try {
+                    // Gọi hàm đăng nhập của TV2 (truyền finalEmail đã được format)
+                    await DbService().signIn(email: finalEmail, password: password);
+                    
+                    if (context.mounted) {
+                      await context.read<AuthProvider>().checkAuthState(); 
+                    }
+                    
+                  } catch (e) {
+                    ScaffoldMessenger.of(context).showSnackBar(
+                      SnackBar(content: Text('Đăng nhập thất bại: $e'), backgroundColor: Colors.red),
+                    );
+                  }
                 },
               ),
             ],

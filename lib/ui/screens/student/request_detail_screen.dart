@@ -1,18 +1,13 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
+import '../../../models/request_model.dart';
 
 class RequestDetailScreen extends StatefulWidget {
-  final String title;
-  final int statusCode; 
-  final Color color;
-  final IconData icon;
+  final RequestModel request; // Thay các biến lẻ bằng biến này
 
   const RequestDetailScreen({
     super.key,
-    required this.title,
-    required this.statusCode,
-    required this.color,
-    required this.icon,
+    required this.request,
   });
 
   @override
@@ -20,19 +15,47 @@ class RequestDetailScreen extends StatefulWidget {
 }
 
 class _RequestDetailScreenState extends State<RequestDetailScreen> {
-  // Biến lưu danh sách các file người dùng đã chọn
   List<String> _attachedFiles = [];
-  // Biến lưu nội dung ghi chú người dùng nhập vào
   final TextEditingController _noteController = TextEditingController();
 
+  // --- CÁC HÀM GETTER ĐỂ LẤY THÔNG TIN TỪ DATABASE ---
   String get statusName {
-    switch (widget.statusCode) {
-      case 0: return 'Đã huỷ';
-      case 1: return 'Chờ tiếp nhận';
-      case 2: return 'Đang xử lý';
-      case 3: return 'Cần bổ sung';
-      case 4: return 'Hoàn thành';
+    switch (widget.request.status.name) {
+      case 'pending': return 'Chờ tiếp nhận';
+      case 'processing': return 'Đang xử lý';
+      case 'completed': return 'Hoàn thành';
+      case 'rejected': return 'Đã huỷ';
       default: return 'Không xác định';
+    }
+  }
+
+  int get statusCode {
+    switch (widget.request.status.name) {
+      case 'pending': return 1;
+      case 'processing': return 2;
+      case 'completed': return 4;
+      case 'rejected': return 0;
+      default: return 1;
+    }
+  }
+
+  Color get statusColor {
+    switch (widget.request.status.name) {
+      case 'pending': return AppColors.primarySV;
+      case 'processing': return AppColors.warning;
+      case 'completed': return AppColors.success;
+      case 'rejected': return AppColors.danger;
+      default: return AppColors.primarySV;
+    }
+  }
+
+  IconData get statusIcon {
+    switch (widget.request.status.name) {
+      case 'pending': return Icons.more_horiz;
+      case 'processing': return Icons.hourglass_empty;
+      case 'completed': return Icons.check;
+      case 'rejected': return Icons.close;
+      default: return Icons.more_horiz;
     }
   }
 
@@ -66,10 +89,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
                     const SizedBox(height: 24),
                     _buildHeaderCard(),
                     const SizedBox(height: 24),
-
-                    // Luồng hiển thị thông tin
-                    if (widget.statusCode == 3) _buildAdminFeedbackSection(context),
-                    if (widget.statusCode == 0) _buildCancelReasonSection(),
+                    if (statusCode == 3) _buildAdminFeedbackSection(context),
+                    if (statusCode == 0) _buildCancelReasonSection(),
                     _buildSentInfoSection(),
                   ],
                 ),
@@ -82,22 +103,22 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     );
   }
 
-  // --- CÁC HÀM XÂY DỰNG GIAO DIỆN CŨ (Giữ nguyên logic) ---
+  // --- CÁC HÀM XÂY DỰNG GIAO DIỆN ---
   Widget _buildTimeline() {
     int currentStep = 1;
-    if (widget.statusCode == 2 || widget.statusCode == 3) currentStep = 2;
-    if (widget.statusCode == 4) currentStep = 3;
-    if (widget.statusCode == 0) currentStep = 0;
+    if (statusCode == 2 || statusCode == 3) currentStep = 2;
+    if (statusCode == 4) currentStep = 3;
+    if (statusCode == 0) currentStep = 0;
 
     return Row(
       mainAxisAlignment: MainAxisAlignment.spaceBetween,
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        _buildTimelineStep('Tiếp nhận', '08:00 11/4', 1, currentStep, widget.color, isCancel: widget.statusCode == 0),
-        Expanded(child: _buildTimelineDivider(currentStep >= 2, widget.color)),
-        _buildTimelineStep('Đang xử lý', currentStep >= 2 ? '10:00 12/4' : '', 2, currentStep, widget.color),
-        Expanded(child: _buildTimelineDivider(currentStep >= 3, widget.color)),
-        _buildTimelineStep('Hoàn thành', widget.statusCode == 4 ? '14:00 12/4' : '', 3, currentStep, widget.color),
+        _buildTimelineStep('Tiếp nhận', '', 1, currentStep, statusColor, isCancel: statusCode == 0),
+        Expanded(child: _buildTimelineDivider(currentStep >= 2, statusColor)),
+        _buildTimelineStep('Đang xử lý', '', 2, currentStep, statusColor),
+        Expanded(child: _buildTimelineDivider(currentStep >= 3, statusColor)),
+        _buildTimelineStep('Hoàn thành', '', 3, currentStep, statusColor),
       ],
     );
   }
@@ -105,7 +126,7 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   Widget _buildTimelineStep(String label, String time, int stepIndex, int currentStep, Color activeColor, {bool isCancel = false}) {
     bool isPast = stepIndex < currentStep;
     bool isCurrent = stepIndex == currentStep;
-    bool isFullyCompleted = isCurrent && widget.statusCode == 4; 
+    bool isFullyCompleted = isCurrent && statusCode == 4; 
 
     Widget iconWidget;
     if (isCancel) {
@@ -137,20 +158,39 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   Widget _buildHeaderCard() {
     return Container(
       padding: const EdgeInsets.all(16),
-      decoration: BoxDecoration(color: widget.statusCode == 0 ? AppColors.dangerLight : widget.color.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
+      decoration: BoxDecoration(color: statusCode == 0 ? AppColors.dangerLight : statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(16)),
       child: Row(
         children: [
-          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: widget.color, shape: BoxShape.circle), child: Icon(widget.icon, color: Colors.white, size: 20)),
+          Container(padding: const EdgeInsets.all(8), decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle), child: Icon(statusIcon, color: Colors.white, size: 20)),
           const SizedBox(width: 16),
-          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [Text(widget.title, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.gray900)), const SizedBox(height: 4), const Text('Mã đơn: #RQ-0123', style: TextStyle(fontSize: 13, color: AppColors.gray500))])),
+          Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+            Text(widget.request.categoryName, style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 15, color: AppColors.gray900)), 
+            const SizedBox(height: 4), 
+            Builder(
+              builder: (context) {
+                // 1. Lấy ngày gửi và 4 ký tự cuối của ID
+                final date = widget.request.createdAt;
+                final shortId = widget.request.id.substring(widget.request.id.length - 4).toUpperCase();
+                
+                // 2. Tự động lấy chữ cái đầu của Loại yêu cầu (VD: "Phúc khảo bài thi" -> "PKBT")
+                String prefix = 'RQ'; // Mặc định
+                if (widget.request.categoryName.isNotEmpty) {
+                  prefix = widget.request.categoryName.split(' ').map((word) => word.isNotEmpty ? word[0].toUpperCase() : '').join('');
+                }
+
+                // 3. Ghép lại: VD #PKBT-1305-XYZ9
+                final formattedId = '#$prefix-${date.day}${date.month}-$shortId';
+                
+                return Text('Mã đơn: $formattedId', style: const TextStyle(fontSize: 13, color: AppColors.gray500));
+              }
+            )
+          ])),
         ],
       ),
     );
   }
 
-  // =====================================================================
-  // 🔥 PHẦN MỚI: UI UPLOAD FILE & BOTTOM SHEET CHO TRẠNG THÁI "CẦN BỔ SUNG"
-  // =====================================================================
+  // Khối Giáo vụ phản hồi (Giữ UI mẫu)
   Widget _buildAdminFeedbackSection(BuildContext context) {
     return Container(
       margin: const EdgeInsets.only(bottom: 24), padding: const EdgeInsets.all(16),
@@ -162,76 +202,49 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
           const SizedBox(height: 12),
           Container(
             padding: const EdgeInsets.all(12), decoration: BoxDecoration(color: AppColors.warningLight, borderRadius: BorderRadius.circular(8)),
-            child: const Text('Ảnh chụp biên lai học phí của em bị mờ. Vui lòng tải lên ảnh khác!'),
+            child: const Text('Vui lòng bổ sung thêm thông tin!'),
           ),
           const SizedBox(height: 16),
-
-          // Hiển thị danh sách các file ĐÃ CHỌN
           if (_attachedFiles.isNotEmpty) ..._attachedFiles.map((fileName) => _buildSelectedFileItem(fileName)),
-
-          // Nút bấm "Nhấn để chọn tệp..."
           GestureDetector(
             onTap: () => _showAttachmentBottomSheet(context),
             child: Container(
               width: double.infinity, padding: const EdgeInsets.all(24),
               decoration: BoxDecoration(
-                color: AppColors.lightSV, 
-                // Mẹo: Dùng viền nét đứt (dashed) thì cần package bên thứ 3. 
-                // Ở đây mình dùng nền xanh nhạt + viền màu xanh dương để giả lập sự nổi bật.
-                border: Border.all(color: AppColors.primarySV.withOpacity(0.4), width: 1.5),
-                borderRadius: BorderRadius.circular(8),
+                color: AppColors.lightSV, border: Border.all(color: AppColors.primarySV.withOpacity(0.4), width: 1.5), borderRadius: BorderRadius.circular(8),
               ),
               child: const Column(
                 children: [
-                  Icon(Icons.cloud_upload_outlined, color: AppColors.primarySV, size: 28), 
-                  SizedBox(height: 8),
+                  Icon(Icons.cloud_upload_outlined, color: AppColors.primarySV, size: 28), SizedBox(height: 8),
                   Text('Nhấn để chọn tệp hoặc chụp ảnh', style: TextStyle(color: AppColors.gray900)),
                 ],
               ),
             ),
           ),
           const SizedBox(height: 12),
-
-          // Ô nhập ghi chú
-          TextField(
-            controller: _noteController,
-            decoration: const InputDecoration(hintText: 'Ghi chú thêm...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12))
-          )
+          TextField(controller: _noteController, decoration: const InputDecoration(hintText: 'Ghi chú thêm...', border: OutlineInputBorder(), contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 12)))
         ],
       ),
     );
   }
 
-  // Thiết kế cái hộp chứa tên file đã chọn kèm nút X (Xóa)
   Widget _buildSelectedFileItem(String fileName) {
     return Container(
-      margin: const EdgeInsets.only(bottom: 12),
-      padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
+      margin: const EdgeInsets.only(bottom: 12), padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 10),
       decoration: BoxDecoration(border: Border.all(color: AppColors.gray200), borderRadius: BorderRadius.circular(8)),
       child: Row(
         children: [
-          const Icon(Icons.insert_drive_file_outlined, color: AppColors.gray500, size: 20), 
-          const SizedBox(width: 8),
+          const Icon(Icons.insert_drive_file_outlined, color: AppColors.gray500, size: 20), const SizedBox(width: 8),
           Expanded(child: Text(fileName, style: const TextStyle(color: AppColors.gray900, fontSize: 13))),
-          GestureDetector(
-            onTap: () {
-              // Logic xoá file khỏi danh sách
-              setState(() {
-                _attachedFiles.remove(fileName);
-              });
-            },
-            child: const Icon(Icons.close, color: AppColors.danger, size: 20),
-          ),
+          GestureDetector(onTap: () { setState(() { _attachedFiles.remove(fileName); }); }, child: const Icon(Icons.close, color: AppColors.danger, size: 20)),
         ],
       ),
     );
   }
 
-  // Bảng Menu trượt từ dưới lên (Bottom Sheet) để chọn hình thức tải
   void _showAttachmentBottomSheet(BuildContext context) {
     showModalBottomSheet(
-      context: context,
-      shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
+      context: context, shape: const RoundedRectangleBorder(borderRadius: BorderRadius.vertical(top: Radius.circular(20))),
       builder: (BuildContext bottomSheetContext) {
         return SafeArea(
           child: Padding(
@@ -239,34 +252,9 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
-                const Text('Tải lên minh chứng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.gray900)),
-                const SizedBox(height: 16),
-                ListTile(
-                  leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primarySV),
-                  title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.w500)),
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext); // Đóng menu
-                    // Giả lập hệ thống vừa chụp xong 1 tấm ảnh
-                    setState(() { _attachedFiles.add('IMG_Camera_${DateTime.now().second}.jpg'); });
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.photo_library_outlined, color: AppColors.primarySV),
-                  title: const Text('Chọn ảnh từ Thư viện', style: TextStyle(fontWeight: FontWeight.w500)),
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext);
-                    // Giả lập người dùng chọn 1 file từ thư viện
-                    setState(() { _attachedFiles.add('Bien_lai_hoc_phi_moi.png'); });
-                  },
-                ),
-                ListTile(
-                  leading: const Icon(Icons.folder_outlined, color: AppColors.primarySV),
-                  title: const Text('Chọn tệp tài liệu (PDF, DOCX)', style: TextStyle(fontWeight: FontWeight.w500)),
-                  onTap: () {
-                    Navigator.pop(bottomSheetContext);
-                    setState(() { _attachedFiles.add('Don_Xin_Xac_Nhan.pdf'); });
-                  },
-                ),
+                const Text('Tải lên minh chứng', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.gray900)), const SizedBox(height: 16),
+                ListTile(leading: const Icon(Icons.camera_alt_outlined, color: AppColors.primarySV), title: const Text('Chụp ảnh mới', style: TextStyle(fontWeight: FontWeight.w500)), onTap: () { Navigator.pop(bottomSheetContext); setState(() { _attachedFiles.add('IMG_Camera_${DateTime.now().second}.jpg'); }); }),
+                ListTile(leading: const Icon(Icons.photo_library_outlined, color: AppColors.primarySV), title: const Text('Chọn ảnh từ Thư viện', style: TextStyle(fontWeight: FontWeight.w500)), onTap: () { Navigator.pop(bottomSheetContext); setState(() { _attachedFiles.add('Bien_lai.png'); }); }),
               ],
             ),
           ),
@@ -275,9 +263,10 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
     );
   }
 
-  // =====================================================================
-
   Widget _buildSentInfoSection() {
+    // Kéo danh sách file thật từ biến bạn vừa tự thêm
+    final files = widget.request.attachedFiles ?? []; 
+
     return Container(
       padding: const EdgeInsets.all(16),
       decoration: BoxDecoration(border: Border.all(color: AppColors.gray200), borderRadius: BorderRadius.circular(16)),
@@ -286,21 +275,35 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
         children: [
           const Text('Thông tin đã gửi', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.gray500)),
           const SizedBox(height: 12),
+          
+          // Khung chứa lý do sinh viên gửi
           Container(
+            width: double.infinity,
             padding: const EdgeInsets.all(12), decoration: BoxDecoration(border: Border.all(color: AppColors.gray200), borderRadius: BorderRadius.circular(8)),
-            child: const Text('Em chào thầy cô, em xin được xác nhận vay vốn để nộp hồ sơ ạ.', style: TextStyle(color: AppColors.gray900)),
+            child: Text(widget.request.reason, style: const TextStyle(color: AppColors.gray900)),
           ),
           const SizedBox(height: 16),
-          Container(
-            padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(border: Border.all(color: AppColors.gray200), borderRadius: BorderRadius.circular(8)),
-            child: const Row(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                Icon(Icons.insert_drive_file_outlined, color: AppColors.gray500, size: 20), SizedBox(width: 8),
-                Text('Don_Xin_Vay_Von.pdf', style: TextStyle(color: AppColors.gray900, fontSize: 13)),
-              ],
-            ),
-          )
+          
+          // Xử lý Ẩn/Hiện File
+          if (files.isEmpty)
+             const Text('Không có tệp đính kèm.', style: TextStyle(color: AppColors.gray500, fontStyle: FontStyle.italic, fontSize: 13))
+          else
+            ...files.map((fileUrl) {
+              String displayFileName = fileUrl.split('/').last;
+              if (displayFileName.length > 20) displayFileName = '...${displayFileName.substring(displayFileName.length - 20)}';
+
+              return Container(
+                margin: const EdgeInsets.only(bottom: 8),
+                padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8), decoration: BoxDecoration(border: Border.all(color: AppColors.gray200), borderRadius: BorderRadius.circular(8)),
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    const Icon(Icons.insert_drive_file_outlined, color: AppColors.gray500, size: 20), const SizedBox(width: 8),
+                    Text(displayFileName, style: const TextStyle(color: AppColors.gray900, fontSize: 13)),
+                  ],
+                ),
+              );
+            }),
         ],
       ),
     );
@@ -319,8 +322,8 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
             child: const Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Text('Người huỷ: Bạn', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.gray900)), SizedBox(height: 4),
-                Text('Lý do: Nộp nhầm loại giấy tờ.', style: TextStyle(color: AppColors.gray500)),
+                Text('Người huỷ: Hệ thống / Giáo vụ', style: TextStyle(fontWeight: FontWeight.bold, color: AppColors.gray900)), SizedBox(height: 4),
+                Text('Lý do: Không hợp lệ.', style: TextStyle(color: AppColors.gray500)),
               ],
             ),
           ),
@@ -330,25 +333,19 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
   }
 
   Widget _buildBottomAction(BuildContext context) {
-    if (widget.statusCode == 1) { 
-      // Nút Huỷ yêu cầu (Viền xanh, chữ xanh giống Figma)
+    if (statusCode == 1) { 
       return Padding(
         padding: const EdgeInsets.all(20.0),
         child: SizedBox(
           width: double.infinity,
           child: OutlinedButton(
             onPressed: () => _showCancelDialog(context),
-            style: OutlinedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              side: const BorderSide(color: AppColors.primarySV, width: 1.5),
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-            ),
+            style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), side: const BorderSide(color: AppColors.primarySV, width: 1.5), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
             child: const Text('Huỷ yêu cầu', style: TextStyle(color: AppColors.primarySV, fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),
       );
-    } else if (widget.statusCode == 3) { 
-      // Nút Gửi bổ sung (Nền xanh, chữ trắng)
+    } else if (statusCode == 3) { 
       return Padding(
         padding: const EdgeInsets.all(20.0),
         child: SizedBox(
@@ -358,17 +355,11 @@ class _RequestDetailScreenState extends State<RequestDetailScreen> {
               if (_attachedFiles.isEmpty && _noteController.text.isEmpty) {
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Vui lòng chọn tệp hoặc nhập ghi chú trước khi gửi!')));
               } else {
-                print("Đã gửi file bổ sung: $_attachedFiles");
                 ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Đã gửi thông tin bổ sung thành công!')));
                 Navigator.pop(context);
               }
             },
-            style: ElevatedButton.styleFrom(
-              padding: const EdgeInsets.symmetric(vertical: 16),
-              backgroundColor: AppColors.primarySV,
-              shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-              elevation: 0,
-            ),
+            style: ElevatedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 16), backgroundColor: AppColors.primarySV, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)), elevation: 0),
             child: const Text('Gửi bổ sung', style: TextStyle(color: Colors.white, fontSize: 16, fontWeight: FontWeight.bold)),
           ),
         ),

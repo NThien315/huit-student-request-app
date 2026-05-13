@@ -2,6 +2,10 @@ import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
 import 'personal_info_screen.dart'; // Màn hình chi tiết thông tin
 
+import 'package:provider/provider.dart';
+import '../../../state/auth_provider.dart';
+import '../../../services/db_service.dart';
+
 class ProfileScreen extends StatefulWidget {
   const ProfileScreen({super.key});
 
@@ -28,18 +32,47 @@ class _ProfileScreenState extends State<ProfileScreen> {
           children: [
             const SizedBox(height: 20),
             // Header Profile
-            Center(
-              child: Stack(
-                children: [
-                  Container(width: 100, height: 100, decoration: BoxDecoration(color: AppColors.gray100, shape: BoxShape.circle), child: const Icon(Icons.person, size: 50, color: AppColors.gray500)),
-                  Positioned(bottom: 0, right: 0, child: Container(padding: const EdgeInsets.all(6), decoration: const BoxDecoration(color: AppColors.primarySV, shape: BoxShape.circle), child: const Icon(Icons.edit, color: Colors.white, size: 16))),
-                ],
-              ),
+            Builder(
+              builder: (context) {
+                final user = context.watch<AuthProvider>().currentUser;
+                
+                return Column(
+                  children: [
+                    CircleAvatar(
+                      radius: 50,
+                      backgroundColor: AppColors.lightSV,
+                      child: ClipOval(
+                        child: Image.asset(
+                          'assets/images/default_avatar.jpg',
+                          fit: BoxFit.cover,
+                          width: 100,
+                          height: 100,
+                          // 👉 Nếu lỗi không tìm thấy ảnh, hiện icon người dùng thay thế
+                          errorBuilder: (context, error, stackTrace) {
+                            return const Icon(Icons.person, size: 50, color: AppColors.primarySV);
+                          },
+                        ),
+                      ),
+                    ),
+                    const SizedBox(height: 16),
+                    Text(
+                      user?.displayName ?? 'N/A',
+                      style: const TextStyle(fontSize: 20, fontWeight: FontWeight.bold),
+                    ),
+                    const SizedBox(height: 4),
+                    Text(
+                      'MSSV: ${user?.studentId ?? 'N/A'}',
+                      style: const TextStyle(color: Colors.grey),
+                    ),
+                    Text(
+                      user?.email ?? '',
+                      style: const TextStyle(color: Colors.grey, fontSize: 13),
+                    ),
+                  ],
+                );
+              }
             ),
             const SizedBox(height: 12),
-            const Text('Nguyễn Văn A', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.gray900)),
-            const Text('MSSV: 2201234567', style: TextStyle(color: AppColors.gray500, fontSize: 14)),
-            const SizedBox(height: 32),
 
             // Menu List
             _buildFlatMenu('Thông tin cá nhân', Icons.person_outline, () {
@@ -104,16 +137,48 @@ class _ProfileScreenState extends State<ProfileScreen> {
   void _showLogoutDialog(BuildContext context) {
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
         title: const Text('Đăng xuất', textAlign: TextAlign.center, style: TextStyle(fontWeight: FontWeight.bold)),
         content: const Text('Bạn có chắc chắn muốn đăng xuất khỏi hệ thống không?', textAlign: TextAlign.center),
         actions: [
           Row(
             children: [
-              Expanded(child: OutlinedButton(onPressed: () => Navigator.pop(context), style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.primarySV), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Hủy', style: TextStyle(color: AppColors.primarySV)))),
+              // NÚT HỦY: Chỉ đóng hộp thoại
+              Expanded(
+                child: OutlinedButton(
+                  onPressed: () => Navigator.pop(dialogContext), 
+                  style: OutlinedButton.styleFrom(side: const BorderSide(color: AppColors.primarySV), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
+                  child: const Text('Hủy', style: TextStyle(color: AppColors.primarySV))
+                )
+              ),
               const SizedBox(width: 12),
-              Expanded(child: ElevatedButton(onPressed: () => Navigator.pop(context), style: ElevatedButton.styleFrom(backgroundColor: AppColors.primarySV, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), child: const Text('Đăng xuất', style: TextStyle(color: Colors.white)))),
+              
+              // NÚT ĐĂNG XUẤT: Vừa đóng hộp thoại, vừa gọi Firebase
+              Expanded(
+                child: ElevatedButton(
+                  onPressed: () async {
+                    // 1. Đóng hộp thoại đi trước
+                    Navigator.pop(dialogContext);
+                    
+                    // 2. Gọi Firebase đăng xuất và đánh thức bộ não
+                    try {
+                      await DbService().signOut();
+                      if (context.mounted) {
+                        context.read<AuthProvider>().checkAuthState();
+                      }
+                    } catch (e) {
+                      if (context.mounted) {
+                        ScaffoldMessenger.of(context).showSnackBar(
+                          SnackBar(content: Text('Lỗi đăng xuất: $e'), backgroundColor: Colors.red),
+                        );
+                      }
+                    }
+                  }, 
+                  style: ElevatedButton.styleFrom(backgroundColor: AppColors.primarySV, shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10))), 
+                  child: const Text('Đăng xuất', style: TextStyle(color: Colors.white))
+                )
+              ),
             ],
           )
         ],

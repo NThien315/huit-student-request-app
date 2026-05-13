@@ -1,6 +1,12 @@
 import 'package:flutter/material.dart';
 import '../../../core/theme.dart';
 import 'request_detail_screen.dart'; 
+import '../../../services/db_service.dart';
+import '../../../models/request_model.dart';
+import 'package:provider/provider.dart';
+import '../../../state/auth_provider.dart';
+
+final DbService _dbService = DbService();
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -13,29 +19,6 @@ class _HistoryScreenState extends State<HistoryScreen> {
   // Biến lưu trữ từ khóa tìm kiếm
   String _searchQuery = '';
 
-  // Dữ liệu mẫu (Giả lập Database)
-  final List<Map<String, dynamic>> _mockRequests = [
-    {
-      'title': 'Xin bảng điểm', 'date': '12/04/2026', 
-      'statusCode': 4, // 4: Hoàn thành
-      'color': AppColors.success, 'icon': Icons.check_circle, 'tab': 'Hoàn thành'
-    },
-    {
-      'title': 'Phúc khảo điểm thi', 'date': '11/04/2026', 
-      'statusCode': 1, // 1: Chờ tiếp nhận
-      'color': AppColors.primarySV, 'icon': Icons.more_horiz, 'tab': 'Chờ tiếp nhận'
-    },
-    {
-      'title': 'Xác nhận vay vốn sinh viên', 'date': '10/04/2026', 
-      'statusCode': 3, // 3: Cần bổ sung
-      'color': AppColors.warning, 'icon': Icons.hourglass_bottom, 'tab': 'Đang xử lý'
-    },
-    {
-      'title': 'Đăng ký xét tốt nghiệp', 'date': '09/04/2026', 
-      'statusCode': 0, // 0: Đã huỷ
-      'color': AppColors.danger, 'icon': Icons.cancel, 'tab': 'Tất cả' 
-    },
-  ];
 
   // Hàm dịch mã Code thành chữ để hiển thị trên Thẻ
   String _getStatusName(int code) {
@@ -106,13 +89,47 @@ class _HistoryScreenState extends State<HistoryScreen> {
               const SizedBox(height: 8),
 
               Expanded(
-                child: TabBarView(
-                  children: [
-                    _buildRequestList(tabFilter: 'Tất cả'),
-                    _buildRequestList(tabFilter: 'Chờ tiếp nhận'),
-                    _buildRequestList(tabFilter: 'Đang xử lý'), 
-                    _buildRequestList(tabFilter: 'Hoàn thành'),
-                  ],
+                child: Builder( // 👉 Bỏ FutureBuilder, thay bằng Builder
+                  builder: (context) {
+                    // 👉 1. Lấy thẳng thông tin user từ bộ não (Không bị vòng lặp)
+                    final authState = context.watch<AuthProvider>();
+                    final currentUser = authState.currentUser;
+
+                    if (currentUser == null) {
+                      return const Center(child: Text('Vui lòng đăng nhập để xem lịch sử'));
+                    }
+
+                    final studentUid = currentUser.uid;
+
+                    // 2. Lắng nghe dữ liệu Lịch sử Real-time từ Firestore
+                    return StreamBuilder<List<RequestModel>>(
+                      stream: _dbService.getStudentRequests(studentUid),
+                      builder: (context, snapshot) {
+                        if (snapshot.connectionState == ConnectionState.waiting) {
+                          return const Center(child: CircularProgressIndicator());
+                        }
+                        if (snapshot.hasError) {
+                          return Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}'));
+                        }
+                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
+                          return const Center(child: Text('Bạn chưa có yêu cầu nào.'));
+                        }
+
+                        final allRequests = snapshot.data!;
+
+                        // 3. Phân loại yêu cầu theo Tab
+                        return TabBarView(
+                          children: [
+                            _buildRequestList(allRequests), // Tab: Tất cả
+                            _buildRequestList(allRequests.where((r) => r.status.name == 'pending').toList()), // Chờ tiếp nhận
+                            _buildRequestList(allRequests.where((r) => r.status.name == 'processing').toList()), // Đang xử lý
+                            _buildRequestList(allRequests.where((r) => r.status.name == 'completed').toList()), // Hoàn thành
+                            _buildRequestList(allRequests.where((r) => r.status.name == 'rejected').toList()), // Đã huỷ/Từ chối
+                          ],
+                        );
+                      },
+                    );
+                  },
                 ),
               ),
             ],
@@ -123,15 +140,11 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }
 
   // Hàm tạo danh sách sau khi đã LỌC TÌM KIẾM và LỌC TAB
-  Widget _buildRequestList({required String tabFilter}) {
-    // 1. Lọc dữ liệu
-    final filteredData = _mockRequests.where((item) {
-      // Kiểm tra xem tên yêu cầu có chứa từ khóa không
-      final matchesSearch = item['title'].toString().toLowerCase().contains(_searchQuery);
-      // Kiểm tra xem nó có thuộc Tab hiện tại không
-      final matchesTab = tabFilter == 'Tất cả' || item['tab'] == tabFilter;
-      
-      return matchesSearch && matchesTab;
+  Widget _buildRequestList(List<RequestModel> requests) {
+    // 1. Lọc dữ liệu theo ô tìm kiếm
+    final filteredData = requests.where((request) {
+      // Tìm theo tên danh mục (title)
+      return request.categoryName.toLowerCase().contains(_searchQuery);
     }).toList();
 
     // 2. Hiển thị UI trống nếu không tìm thấy
@@ -141,19 +154,38 @@ class _HistoryScreenState extends State<HistoryScreen> {
       );
     }
 
-    // 3. Hiển thị danh sách kết quả
+    // 3. Hiển thị danh sách kết quả thật
     return ListView.builder(
       padding: const EdgeInsets.all(16.0),
       itemCount: filteredData.length,
       itemBuilder: (context, index) {
-        final data = filteredData[index];
+        final request = filteredData[index]; // Đây là dữ liệu thật từ TV2
+        
+        // Chuyển đổi trạng thái từ TV2 sang UI của bạn
+        Color statusColor = AppColors.primarySV;
+        IconData statusIcon = Icons.more_horiz;
+        int statusCode = 1;
+
+        switch (request.status.name) {
+          case 'pending':
+            statusColor = AppColors.primarySV; statusIcon = Icons.more_horiz; statusCode = 1; break;
+          case 'processing':
+            statusColor = AppColors.warning; statusIcon = Icons.hourglass_empty; statusCode = 2; break;
+          case 'completed':
+            statusColor = AppColors.success; statusIcon = Icons.check; statusCode = 4; break;
+          case 'rejected':
+            statusColor = AppColors.danger; statusIcon = Icons.close; statusCode = 0; break;
+        }
+
         return _buildRequestCard(
           context: context,
-          title: data['title'],
-          date: data['date'],
-          statusCode: data['statusCode'], // TRUYỀN INT VÀO ĐÂY
-          statusColor: data['color'],
-          icon: data['icon'],
+          request: request,
+          title: request.categoryName, // Lấy tên yêu cầu
+          // Format ngày tháng (có thể dùng package intl để format đẹp hơn sau)
+          date: "${request.createdAt.day}/${request.createdAt.month}/${request.createdAt.year}", 
+          statusCode: statusCode, 
+          statusColor: statusColor,
+          icon: statusIcon,
         );
       },
     );
@@ -161,6 +193,7 @@ class _HistoryScreenState extends State<HistoryScreen> {
 
   Widget _buildRequestCard({
     required BuildContext context, 
+    required RequestModel request,
     required String title, 
     required String date,
     required int statusCode, 
@@ -169,9 +202,12 @@ class _HistoryScreenState extends State<HistoryScreen> {
   }) {
     return GestureDetector(
       onTap: () {
-        Navigator.push(context, MaterialPageRoute(builder: (context) => RequestDetailScreen(
-          title: title, statusCode: statusCode, color: statusColor, icon: icon,
-        )));
+        Navigator.push(
+          context,
+          MaterialPageRoute(
+            builder: (context) => RequestDetailScreen(request: request), // Truyền nguyên model thật
+          ),
+        );
       },
       child: Container(
         margin: const EdgeInsets.only(bottom: 12), // Giảm khoảng cách giữa các thẻ một chút
