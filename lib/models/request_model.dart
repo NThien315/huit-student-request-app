@@ -49,7 +49,7 @@ class RequestModel {
   final String categoryName;
   // Nội dung yêu cầu
   final String reason;
-  final List<String> attachmentUrls; // URL ảnh đính kèm trên Firebase Storage
+  final List<String> attachmentUrls; // URL ảnh đính kèm trên Supabase Storage
   // Trạng thái xử lý
   final RequestStatus status;
   final String? note;       // Phản hồi từ Giáo vụ khoa

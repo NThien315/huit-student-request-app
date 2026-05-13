@@ -3,8 +3,10 @@
 
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import 'firebase_options.dart'; // Auto-generated bởi flutterfire configure
+import 'core/constants.dart';
 import 'state/auth_provider.dart';
 import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
@@ -13,9 +15,15 @@ import 'services/auth_service.dart';
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Khởi tạo Firebase
+  // Khởi tạo Firebase (Auth, Firestore, FCM)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
+  );
+
+  // Khởi tạo Supabase (chỉ dùng cho Storage — thay Firebase Storage)
+  await Supabase.initialize(
+    url: SupabaseConfig.url,
+    anonKey: SupabaseConfig.anonKey,
   );
 
   // Khởi tạo Push Notification
