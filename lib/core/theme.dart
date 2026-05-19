@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 class AppColors {
   // Màu chủ đạo theo Role
@@ -39,8 +40,13 @@ class AppTheme {
       primaryColor: AppColors.primarySV,
       scaffoldBackgroundColor: AppColors.background,
       appBarTheme: const AppBarTheme(
-        backgroundColor: AppColors.white,
+        backgroundColor: Colors.transparent,
         elevation: 0,
+        systemOverlayStyle: SystemUiOverlayStyle(
+          statusBarColor: Colors.transparent, // Giữ thanh trạng thái trong suốt
+          statusBarIconBrightness: Brightness.dark, // Chữ/Icon đen trên nền sáng (Android)
+          statusBarBrightness: Brightness.light, // Cơ chế tự động nhận diện độ sáng (iOS)
+        ),
         centerTitle: true,
         iconTheme: IconThemeData(color: AppColors.gray900),
         titleTextStyle: TextStyle(

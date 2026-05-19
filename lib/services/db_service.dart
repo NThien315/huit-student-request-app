@@ -1,215 +1,129 @@
-// lib/services/db_service.dart
-// TV2 — Lớp trừu tượng Kéo/Đẩy dữ liệu lên Firestore (Task 3.2)
-// File này wrap FirestoreService + AuthService, cung cấp API đơn giản
-// cho TV1 (UI) và TV3 (State) sử dụng mà không cần biết chi tiết Firestore.
-
-import '../models/user_model.dart';
+import 'dart:io';
+import 'package:flutter/material.dart';
+import 'package:huit_student_request_app/models/notification_model.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/request_model.dart';
 import '../models/category_model.dart';
-import 'firestore_service.dart';
-import 'auth_service.dart';
+import '../models/user_model.dart';
 
-/// DbService — Lớp trung gian (Facade pattern) quản lý toàn bộ thao tác
-/// đọc/ghi dữ liệu giữa Flutter app và Firebase.
-///
-/// TV1 và TV3 chỉ cần khởi tạo `DbService()` và gọi các method bên dưới,
-/// không cần import trực tiếp FirestoreService hay AuthService.
-///
-/// ```dart
-/// final db = DbService();
-///
-/// // Đăng nhập
-/// final user = await db.signIn('email@huit.edu.vn', 'password');
-///
-/// // Tạo yêu cầu
-/// await db.createRequest(student: user, category: cat, reason: 'Lý do');
-///
-/// // Lấy danh sách yêu cầu (real-time)
-/// db.getStudentRequests(user.uid).listen((list) => print(list));
-/// ```
 class DbService {
-  final FirestoreService _firestoreService = FirestoreService();
-  final AuthService _authService = AuthService();
+  final _supabase = Supabase.instance.client;
 
-  // ════════════════════════════════════════════════════════════════════════════
-  // XÁC THỰC (Authentication)
-  // ════════════════════════════════════════════════════════════════════════════
+  // ─── 1. THAO TÁC VỚI STORAGE (FILE) ──────────────────────────────────────────
+  Future<String?> uploadFileToStorage(String filePath, String uid) async {
+    try {
+      final file = File(filePath);
+      final fileName = filePath.split('/').last;
+      final path = 'uploads/$uid/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
-  /// UC001 — Đăng nhập bằng Email/Password
-  /// Trả về [UserModel] chứa thông tin tài khoản nếu thành công.
-  /// Throw Exception nếu sai email/mật khẩu.
-  Future<UserModel> signIn({
-    required String email,
-    required String password,
-  }) {
-    return _authService.signIn(email: email, password: password);
+      // Upload vào bucket 'request_attachments'
+      await _supabase.storage.from('request_attachments').upload(path, file);
+
+      // Lấy link URL công khai
+      return _supabase.storage.from('request_attachments').getPublicUrl(path);
+    } catch (e) {
+      debugPrint("Lỗi tải file lên Supabase: $e");
+      return null;
+    }
   }
 
-  /// UC008 — Đăng xuất khỏi hệ thống
-  Future<void> signOut() {
-    return _authService.signOut();
+  // ─── 2. THAO TÁC VỚI REQUESTS (YÊU CẦU) ────────────────────────────────────
+  
+  // Tạo đơn yêu cầu mới
+  Future<void> createRequest(RequestModel request) async {
+    try {
+      await _supabase.from('requests').insert(request.toMap());
+    } catch (e) {
+      throw Exception('Lỗi khi tạo yêu cầu: $e');
+    }
   }
 
-  /// UC002 — Đổi mật khẩu
-  /// Yêu cầu nhập mật khẩu hiện tại để xác minh danh tính trước.
-  Future<void> changePassword({
-    required String currentPassword,
-    required String newPassword,
-  }) {
-    return _authService.changePassword(
-      currentPassword: currentPassword,
-      newPassword: newPassword,
-    );
+  // Lấy danh sách yêu cầu của MỘT sinh viên (Dùng Stream để tự động cập nhật UI)
+  Stream<List<RequestModel>> getStudentRequestsStream(String studentUid) {
+    return _supabase
+        .from('requests')
+        .stream(primaryKey: ['id'])
+        .eq('studentUid', studentUid)
+        .order('createdAt', ascending: false)
+        .map((maps) => maps.map((map) => RequestModel.fromMap(map)).toList());
   }
 
-  /// Tạo tài khoản mới — Chỉ Admin sử dụng
-  Future<UserModel> createAccount({
-    required String email,
-    required String password,
-    required String displayName,
-    required UserRole role,
-    String? studentId,
-  }) {
-    return _authService.createAccount(
-      email: email,
-      password: password,
-      displayName: displayName,
-      role: role,
-      studentId: studentId,
-    );
+  // ─── 3. THAO TÁC VỚI CATEGORIES (LOẠI YÊU CẦU) ─────────────────────────────
+  
+  // Lấy danh sách Loại yêu cầu đang hoạt động
+  Future<List<CategoryModel>> getActiveCategories() async {
+    try {
+      final data = await _supabase
+          .from('request_categories')
+          .select()
+          .eq('isActive', true)
+          .order('name', ascending: true);
+          
+      return data.map((map) => CategoryModel.fromMap(map)).toList();
+    } catch (e) {
+      throw Exception('Lỗi lấy danh mục: $e');
+    }
   }
 
-  /// Lấy thông tin user đang đăng nhập
-  Future<UserModel?> fetchCurrentUser() {
-    return _authService.fetchCurrentUser();
+  // Lấy danh sách Loại yêu cầu (Dạng Stream)
+  Stream<List<CategoryModel>> getActiveCategoriesStream() {
+    return _supabase
+        .from('request_categories')
+        .stream(primaryKey: ['id'])
+        .eq('isActive', true)
+        .map((maps) => maps.map((map) => CategoryModel.fromMap(map)).toList());
   }
 
-  /// Stream theo dõi trạng thái đăng nhập (đăng nhập / đăng xuất)
-  Stream get authStateChanges => _authService.authStateChanges;
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // DANH MỤC YÊU CẦU (Request Categories)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  /// Lấy danh mục đang hoạt động — dùng cho Sinh viên chọn loại yêu cầu
-  Stream<List<CategoryModel>> getActiveCategories() {
-    return _firestoreService.getActiveCategories();
+  // ─── 4. THAO TÁC VỚI USERS (NGƯỜI DÙNG) ────────────────────────────────────
+  
+  Future<UserModel?> getUserData(String uid) async {
+    try {
+      final data = await _supabase.from('users').select().eq('uid', uid).single();
+      return UserModel.fromMap(data);
+    } catch (e) {
+      debugPrint("Lỗi lấy thông tin user: $e");
+      return null;
+    }
   }
 
-  /// Lấy tất cả danh mục (kể cả đã ẩn) — dùng cho Admin quản lý
-  Stream<List<CategoryModel>> getAllCategories() {
-    return _firestoreService.getAllCategories();
+  Future<void> updateRequestStatus(String requestId, String newStatus) async {
+    try {
+      // Dùng Supabase.instance.client để gọi thẳng từ thư viện gốc, 
+      // giúp an toàn tuyệt đối và không lo bị lỗi "không hiểu _supabase" nữa.
+      await Supabase.instance.client
+          .from('requests')
+          .update({'status': newStatus})
+          .eq('id', requestId);
+    } catch (e) {
+      debugPrint("Lỗi cập nhật trạng thái đơn trên Supabase: $e");
+      rethrow; // Đẩy lỗi ra ngoài để trang Chi tiết bắt được và hiện GlassToast
+    }
   }
 
-  /// UC006 — Thêm danh mục mới (Admin)
-  Future<void> addCategory({
-    required String name,
-    required String description,
-  }) {
-    return _firestoreService.addCategory(name: name, description: description);
+  // ─── LẮNG NGHE THÔNG BÁO REAL-TIME ─────────────────────────────────────
+  Stream<List<NotificationModel>> getNotificationsStream(String studentUid) {
+    return _supabase
+        .from('notifications')
+        .stream(primaryKey: ['id'])
+        .eq('studentUid', studentUid)
+        .order('createdAt', ascending: false)
+        .map((data) => data.map((map) => NotificationModel.fromMap(map)).toList());
   }
 
-  /// UC006 — Sửa danh mục (Admin)
-  Future<void> updateCategory(String id,
-      {String? name, String? description}) {
-    return _firestoreService.updateCategory(id,
-        name: name, description: description);
+  // ─── ĐÁNH DẤU THÔNG BÁO ĐÃ ĐỌC ──────────────────────────────────────────
+  Future<void> markNotificationAsRead(String notificationId) async {
+    await _supabase
+        .from('notifications')
+        .update({'isRead': true})
+        .eq('id', notificationId);
   }
 
-  /// UC006 — Bật / Tắt danh mục (Admin) — không xóa cứng
-  Future<void> toggleCategoryActive(String id, {required bool isActive}) {
-    return _firestoreService.toggleCategoryActive(id, isActive: isActive);
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // YÊU CẦU CỦA SINH VIÊN (Requests)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  /// UC003 — Sinh viên tạo yêu cầu mới
-  /// Trả về requestId để điều hướng đến trang chi tiết.
-  Future<String> createRequest({
-    required UserModel student,
-    required CategoryModel category,
-    required String reason,
-    List<String> attachmentUrls = const [],
-  }) {
-    return _firestoreService.createRequest(
-      student: student,
-      category: category,
-      reason: reason,
-      attachmentUrls: attachmentUrls,
-    );
-  }
-
-  /// UC004 — Lấy danh sách yêu cầu của một sinh viên (real-time)
-  Stream<List<RequestModel>> getStudentRequests(String studentUid) {
-    return _firestoreService.getStudentRequests(studentUid);
-  }
-
-  /// UC005 — Lấy tất cả yêu cầu (Giáo vụ / Admin), có thể lọc theo trạng thái
-  Stream<List<RequestModel>> getAllRequests({RequestStatus? filterStatus}) {
-    return _firestoreService.getAllRequests(filterStatus: filterStatus);
-  }
-
-  /// Lấy yêu cầu đang chờ tiếp nhận (FIFO)
-  Stream<List<RequestModel>> getPendingRequests() {
-    return _firestoreService.getPendingRequests();
-  }
-
-  /// Lấy chi tiết một yêu cầu theo ID
-  Future<RequestModel?> getRequestById(String requestId) {
-    return _firestoreService.getRequestById(requestId);
-  }
-
-  /// UC005 — Giáo vụ cập nhật trạng thái + ghi chú phản hồi
-  Future<void> updateRequestStatus({
-    required String requestId,
-    required RequestStatus newStatus,
-    required String staffUid,
-    String? note,
-  }) {
-    return _firestoreService.updateRequestStatus(
-      requestId: requestId,
-      newStatus: newStatus,
-      staffUid: staffUid,
-      note: note,
-    );
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // NGƯỜI DÙNG (Users)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  /// Lấy thông tin một user theo UID
-  Future<UserModel?> getUserById(String uid) {
-    return _firestoreService.getUserById(uid);
-  }
-
-  /// Lấy danh sách tất cả user (Admin)
-  Stream<List<UserModel>> getAllUsers() {
-    return _firestoreService.getAllUsers();
-  }
-
-  /// Lấy danh sách user theo role
-  Stream<List<UserModel>> getUsersByRole(UserRole role) {
-    return _firestoreService.getUsersByRole(role);
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // THỐNG KÊ (Dashboard — Admin/Giáo vụ)
-  // ════════════════════════════════════════════════════════════════════════════
-
-  /// Lấy số lượng yêu cầu theo từng trạng thái — dùng hiển thị dashboard
-  Future<Map<RequestStatus, int>> getRequestStats() {
-    return _firestoreService.getRequestStats();
-  }
-
-  // ════════════════════════════════════════════════════════════════════════════
-  // SEED DATA
-  // ════════════════════════════════════════════════════════════════════════════
-
-  /// Tạo dữ liệu danh mục mẫu ban đầu (chạy 1 lần khi deploy)
-  Future<void> seedCategories() {
-    return _firestoreService.seedCategories();
+  // Đánh dấu đọc tất cả
+  Future<void> markAllNotificationsAsRead(String studentUid) async {
+    await _supabase
+        .from('notifications')
+        .update({'isRead': true})
+        .eq('studentUid', studentUid)
+        .eq('isRead', false);
   }
 }

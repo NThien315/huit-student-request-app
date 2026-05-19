@@ -24,7 +24,7 @@ class _SearchScreenState extends State<SearchScreen> {
           padding: const EdgeInsets.only(right: 16.0),
           child: TextField(
             controller: _searchController,
-            autofocus: true, // QUAN TRỌNG: Tự động bật bàn phím ngay khi vào trang
+            autofocus: true, //  Tự động bật bàn phím ngay khi vào trang
             decoration: InputDecoration(
               hintText: 'Tìm kiếm yêu cầu...',
               hintStyle: const TextStyle(color: AppColors.gray500, fontSize: 15),

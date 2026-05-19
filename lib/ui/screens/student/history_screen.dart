@@ -1,12 +1,12 @@
 import 'package:flutter/material.dart';
-import '../../../core/theme.dart';
-import 'request_detail_screen.dart'; 
-import '../../../services/db_service.dart';
-import '../../../models/request_model.dart';
+import 'package:huit_student_request_app/ui/screens/student/request_detail_screen.dart';
+import 'package:shimmer/shimmer.dart';
 import 'package:provider/provider.dart';
+import '../../../core/theme.dart';
+import '../../../models/request_model.dart';
+import '../../../services/db_service.dart';
 import '../../../state/auth_provider.dart';
-
-final DbService _dbService = DbService();
+import 'package:flutter/services.dart';
 
 class HistoryScreen extends StatefulWidget {
   const HistoryScreen({super.key});
@@ -15,121 +15,302 @@ class HistoryScreen extends StatefulWidget {
   State<HistoryScreen> createState() => _HistoryScreenState();
 }
 
-class _HistoryScreenState extends State<HistoryScreen> {
-  // Biến lưu trữ từ khóa tìm kiếm
+// Sử dụng AutomaticKeepAliveClientMixin để chuyển tab không bị load lại
+class _HistoryScreenState extends State<HistoryScreen> with AutomaticKeepAliveClientMixin {
+  
+  @override
+  bool get wantKeepAlive => true; 
+
+  String _selectedFilter = 'Tất cả';
+  final List<String> _filters = ['Tất cả', 'Chờ tiếp nhận', 'Đang xử lý', 'Hoàn thành', 'Đã huỷ'];
+  
+  // Thêm biến cho Thanh tìm kiếm và Stream
   String _searchQuery = '';
+  late Stream<List<RequestModel>> _requestsStream;
 
-
-  // Hàm dịch mã Code thành chữ để hiển thị trên Thẻ
-  String _getStatusName(int code) {
-    switch (code) {
-      case 0: return 'Đã huỷ';
-      case 1: return 'Chờ tiếp nhận';
-      case 2: return 'Đang xử lý';
-      case 3: return 'Cần bổ sung';
-      case 4: return 'Hoàn thành';
-      default: return '';
-    }
+  @override
+  void initState() {
+    super.initState();
+    final user = context.read<AuthProvider>().currentUser;
+    _requestsStream = DbService().getStudentRequestsStream(user?.uid ?? '');
   }
 
   @override
   Widget build(BuildContext context) {
-    return DefaultTabController(
-      length: 4,
-      child: Scaffold(
-        backgroundColor: AppColors.white,
-        body: SafeArea(
-          child: Column(
-            children: [
-              const Padding(
-                padding: EdgeInsets.symmetric(vertical: 16.0),
-                child: Text('Lịch sử', style: TextStyle(fontSize: 18, fontWeight: FontWeight.bold, color: AppColors.gray900)),
+    super.build(context); 
+
+    return GestureDetector(
+      onTap: () => FocusManager.instance.primaryFocus?.unfocus(),
+      child: AnnotatedRegion<SystemUiOverlayStyle>(
+        value: SystemUiOverlayStyle.dark, // Ép icon pin/mạng màu tối (đen)
+        child: Scaffold(
+        backgroundColor: Colors.transparent,
+        body: Container(
+          color: AppColors.white,
+          child: SafeArea(
+            bottom: false,
+            child: RefreshIndicator(
+              onRefresh: () async {
+                await Future.delayed(const Duration(milliseconds: 800));
+              },
+              // CHUYỂN SANG DÙNG CustomScrollView ĐỂ CUỘN TOÀN TRANG
+              child: CustomScrollView(
+                physics: const AlwaysScrollableScrollPhysics(),
+                slivers: [
+                  SliverToBoxAdapter(child: _buildHeader()),
+                  SliverToBoxAdapter(child: _buildSearchBar()),
+                  SliverToBoxAdapter(child: const SizedBox(height: 12)),
+                  SliverToBoxAdapter(child: _buildModernFilterBar()),
+                  
+                  // StreamBuilder giờ trả về các Sliver thay vì Widget thường
+                  StreamBuilder<List<RequestModel>>(
+                    stream: _requestsStream, 
+                    builder: (context, snapshot) {
+                      // Hiển thị trực tiếp lỗi lên màn hình nếu Stream thất bại
+                      if (snapshot.hasError) {
+                        debugPrint("🚨 LỖI PHÁT SINH TỪ STREAM: ${snapshot.error}");
+                        return SliverToBoxAdapter(
+                          child: Padding(
+                            padding: const EdgeInsets.all(32.0),
+                            child: Center(
+                              child: Text(
+                                'Lỗi kết nối dữ liệu: ${snapshot.error}', 
+                                style: const TextStyle(color: AppColors.danger, fontWeight: FontWeight.bold),
+                                textAlign: TextAlign.center,
+                              ),
+                            ),
+                          ),
+                        );
+                      }
+
+                      // 2. Trạng thái đang đợi tải dữ liệu
+                      if (snapshot.connectionState == ConnectionState.waiting) {
+                        return SliverToBoxAdapter(child: _buildShimmerLoading());
+                      }
+
+                      // 3. Kiểm tra dữ liệu an toàn trước khi ép tiến trình đọc dữ liệu (!), tránh lỗi Null check
+                      if (!snapshot.hasData || snapshot.data == null || snapshot.data!.isEmpty) {
+                        return SliverFillRemaining(
+                          hasScrollBody: false,
+                          child: _buildEmptyState(),
+                        );
+                      }
+
+                      // 4. Lọc danh sách khi đã chắc chắn data không bị null
+                      final requests = snapshot.data!;
+                      final filteredList = requests.where((req) {
+                        final matchesFilter = _selectedFilter == 'Tất cả' || _getStatusLabel(req.status.name) == _selectedFilter;
+                        final matchesSearch = req.categoryName.toLowerCase().contains(_searchQuery.toLowerCase());
+                        return matchesFilter && matchesSearch;
+                      }).toList();
+
+                      if (filteredList.isEmpty) {
+                        return const SliverToBoxAdapter(
+                          child: Padding(
+                            padding: EdgeInsets.only(top: 40),
+                            child: Center(child: Text("Không tìm thấy yêu cầu nào", style: TextStyle(color: AppColors.gray500))),
+                          ),
+                        );
+                      }
+
+                      // 5. Hiển thị danh sách thẻ đơn
+                      return SliverPadding(
+                        padding: const EdgeInsets.fromLTRB(16, 16, 16, 120),
+                        sliver: SliverList(
+                          delegate: SliverChildBuilderDelegate(
+                            (context, index) => _buildRequestCard(filteredList[index]),
+                            childCount: filteredList.length,
+                          ),
+                        ),
+                      );
+                    },
+                  ),
+                ],
               ),
-              
-              // Ô tìm kiếm có sự kiện onChanged
-              Padding(
-                padding: const EdgeInsets.symmetric(horizontal: 16.0),
-                child: TextField(
-                  onChanged: (value) {
-                    setState(() {
-                      _searchQuery = value.toLowerCase(); // Chuyển chữ thường để dễ tìm
-                    });
-                  },
-                  decoration: InputDecoration(
-                    hintText: 'Tìm kiếm',
-                    hintStyle: const TextStyle(color: AppColors.gray500),
-                    prefixIcon: const Icon(Icons.search, color: AppColors.gray900),
-                    filled: true,
-                    fillColor: AppColors.gray100,
-                    contentPadding: const EdgeInsets.symmetric(vertical: 0),
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(30), borderSide: BorderSide.none),
+            ),
+          ),
+        ),
+      ),
+    ),
+    );
+  }
+
+  // --- WIDGET GIAO DIỆN ---
+
+  Widget _buildHeader() {
+    return const Padding(
+      padding: EdgeInsets.all(24.0),
+      child: Text(
+        'Lịch sử yêu cầu',
+        style: TextStyle(fontSize: 26, fontWeight: FontWeight.bold, color: AppColors.gray900),
+      ),
+    );
+  }
+
+  // --- GIAO DIỆN TÌM KIẾM ---
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(horizontal: 16.0),
+      child: TextField(
+        onChanged: (value) => setState(() => _searchQuery = value),
+        decoration: InputDecoration(
+          hintText: 'Tìm kiếm đơn (VD: Xin bảng điểm)...',
+          hintStyle: const TextStyle(color: AppColors.gray500, fontSize: 14),
+          prefixIcon: const Icon(Icons.search_rounded, color: AppColors.gray500),
+          filled: true,
+          fillColor: AppColors.gray100.withValues(alpha: 0.5),
+          contentPadding: const EdgeInsets.symmetric(vertical: 0),
+          border: OutlineInputBorder(
+            borderRadius: BorderRadius.circular(20),
+            borderSide: BorderSide.none,
+          ),
+        ),
+      ),
+    );
+  }
+
+  // --- GIAO DIỆN BỘ LỌC (Thay thế ChoiceChip) ---
+  Widget _buildModernFilterBar() {
+    return SizedBox(
+      height: 60, 
+      child: ListView.builder(
+        scrollDirection: Axis.horizontal,
+        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10), 
+        clipBehavior: Clip.none, 
+        itemCount: _filters.length,
+        itemBuilder: (context, index) {
+          final filter = _filters[index];
+          final isSelected = _selectedFilter == filter;
+          
+          final filterColor = _getFilterColor(filter); 
+
+          return GestureDetector(
+            onTap: () => setState(() => _selectedFilter = filter),
+            child: AnimatedContainer(
+              duration: const Duration(milliseconds: 200),
+              margin: const EdgeInsets.only(right: 10),
+              padding: const EdgeInsets.symmetric(horizontal: 18), 
+              decoration: BoxDecoration(
+                // Đổ màu theo filterColor thay vì primarySV
+                color: isSelected ? filterColor : AppColors.white, 
+                borderRadius: BorderRadius.circular(20),
+                border: Border.all(
+                  color: isSelected ? filterColor : AppColors.gray200,
+                ),
+                boxShadow: isSelected ? [
+                  BoxShadow(color: filterColor.withValues(alpha: 0.4), blurRadius: 12, spreadRadius: 1, offset: const Offset(0, 3))
+                ] : [],
+              ),
+              child: Center(
+                child: Text(
+                  filter,
+                  style: TextStyle(
+                    // Nút không chọn thì hiện màu của trạng thái đó cho sinh động (tuỳ chọn)
+                    color: isSelected ? Colors.white : AppColors.gray500,
+                    fontWeight: isSelected ? FontWeight.bold : FontWeight.w500,
+                    fontSize: 13,
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
+            ),
+          );
+        },
+      ),
+    );
+  }
 
-              const TabBar(
-                isScrollable: true,
-                tabAlignment: TabAlignment.start,
-                padding: EdgeInsets.symmetric(horizontal: 16),
-                labelColor: AppColors.gray900,
-                unselectedLabelColor: AppColors.gray500,
-                indicatorColor: AppColors.primarySV,
-                indicatorWeight: 3,
-                labelStyle: TextStyle(fontWeight: FontWeight.bold, fontSize: 15),
-                unselectedLabelStyle: TextStyle(fontWeight: FontWeight.normal, fontSize: 15),
-                dividerColor: Colors.transparent,
-                tabs: [
-                  Tab(text: 'Tất cả'),
-                  Tab(text: 'Chờ tiếp nhận'),
-                  Tab(text: 'Đang xử lý'),
-                  Tab(text: 'Hoàn thành'),
-                ],
+  Color _getFilterColor(String filter) {
+    switch (filter) {
+      case 'Chờ tiếp nhận': return Colors.blue;
+      case 'Đang xử lý': return Colors.orange;
+      case 'Hoàn thành': return Colors.green;
+      case 'Đã huỷ': return Colors.red;
+      default: return AppColors.primarySV; // Dành cho nút 'Tất cả'
+    }
+  }
+
+  Widget _buildRequestCard(RequestModel request) {
+    final statusColor = _getStatusColor(request.status.name);
+    final statusText = _getStatusLabel(request.status.name);
+
+    // 1. Logic tạo mã đơn tự động giống trang Chi tiết
+    final date = request.createdAt;
+    final shortId = request.id.substring(request.id.length - 4).toUpperCase();
+    String prefix = 'RQ';
+    if (request.categoryName.isNotEmpty) {
+      prefix = request.categoryName.split(' ').map((word) => word.isNotEmpty ? word[0].toUpperCase() : '').join('');
+    }
+    final formattedId = '#$prefix-${date.day}${date.month}-$shortId';
+
+    // 2. Định dạng thời gian chi tiết (Giờ:Phút - Ngày/Tháng/Năm)
+    final timeStr = "${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} - ${date.day.toString().padLeft(2, '0')}/${date.month.toString().padLeft(2, '0')}/${date.year}";
+
+    return Container(
+      margin: const EdgeInsets.only(bottom: 16),
+      decoration: BoxDecoration(
+        color: Colors.white,
+        borderRadius: BorderRadius.circular(24),
+        boxShadow: [
+          BoxShadow(
+            color: statusColor.withValues(alpha: 0.12),
+            blurRadius: 24,
+            spreadRadius: 2,
+            offset: const Offset(0, 4),
+          ),
+        ],
+      ),
+      child: InkWell(
+        borderRadius: BorderRadius.circular(24),
+        onTap: () {
+          Navigator.push(
+            context,
+            MaterialPageRoute(builder: (context) => RequestDetailScreen(request: request)),
+          );
+        },
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: Row(
+            crossAxisAlignment: CrossAxisAlignment.center, // Đẩy các phần tử lên đỉnh để không lệch khi nhiều text
+            children: [
+              // Icon trạng thái
+              Container(
+                padding: const EdgeInsets.all(12),
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), shape: BoxShape.circle),
+                child: Icon(_getStatusIcon(request.status.name), color: statusColor, size: 24),
               ),
-              const SizedBox(height: 8),
-
+              const SizedBox(width: 16),
+              
+              // Khối thông tin chi tiết
               Expanded(
-                child: Builder( // 👉 Bỏ FutureBuilder, thay bằng Builder
-                  builder: (context) {
-                    // 👉 1. Lấy thẳng thông tin user từ bộ não (Không bị vòng lặp)
-                    final authState = context.watch<AuthProvider>();
-                    final currentUser = authState.currentUser;
-
-                    if (currentUser == null) {
-                      return const Center(child: Text('Vui lòng đăng nhập để xem lịch sử'));
-                    }
-
-                    final studentUid = currentUser.uid;
-
-                    // 2. Lắng nghe dữ liệu Lịch sử Real-time từ Firestore
-                    return StreamBuilder<List<RequestModel>>(
-                      stream: _dbService.getStudentRequests(studentUid),
-                      builder: (context, snapshot) {
-                        if (snapshot.connectionState == ConnectionState.waiting) {
-                          return const Center(child: CircularProgressIndicator());
-                        }
-                        if (snapshot.hasError) {
-                          return Center(child: Text('Lỗi tải dữ liệu: ${snapshot.error}'));
-                        }
-                        if (!snapshot.hasData || snapshot.data!.isEmpty) {
-                          return const Center(child: Text('Bạn chưa có yêu cầu nào.'));
-                        }
-
-                        final allRequests = snapshot.data!;
-
-                        // 3. Phân loại yêu cầu theo Tab
-                        return TabBarView(
-                          children: [
-                            _buildRequestList(allRequests), // Tab: Tất cả
-                            _buildRequestList(allRequests.where((r) => r.status.name == 'pending').toList()), // Chờ tiếp nhận
-                            _buildRequestList(allRequests.where((r) => r.status.name == 'processing').toList()), // Đang xử lý
-                            _buildRequestList(allRequests.where((r) => r.status.name == 'completed').toList()), // Hoàn thành
-                            _buildRequestList(allRequests.where((r) => r.status.name == 'rejected').toList()), // Đã huỷ/Từ chối
-                          ],
-                        );
-                      },
-                    );
-                  },
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    // Tên danh mục (Đăng ký học phần, Xin bảng điểm...)
+                    Text(
+                      request.categoryName,
+                      maxLines: 1,
+                      style: const TextStyle(fontWeight: FontWeight.bold, fontSize: 16, color: AppColors.gray900),
+                    ),
+                    const SizedBox(height: 6),
+                    
+                    // Mã đơn & Thời gian trên cùng một hàng để tiết kiệm diện tích
+                    Text(formattedId, style: const TextStyle(color: AppColors.primarySV, fontWeight: FontWeight.bold, fontSize: 12)),
+                    const SizedBox(height: 8),
+                    
+                    Text(timeStr, style: const TextStyle(color: AppColors.gray500, fontSize: 12)),
+                  ],
+                ),
+              ),
+              const SizedBox(width: 8),
+              
+              // Nhãn trạng thái bên phải ngoài cùng
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+                decoration: BoxDecoration(color: statusColor.withValues(alpha: 0.1), borderRadius: BorderRadius.circular(10)),
+                child: Text(
+                  statusText,
+                  style: TextStyle(color: statusColor, fontWeight: FontWeight.bold, fontSize: 11),
                 ),
               ),
             ],
@@ -139,125 +320,68 @@ class _HistoryScreenState extends State<HistoryScreen> {
     );
   }
 
-  // Hàm tạo danh sách sau khi đã LỌC TÌM KIẾM và LỌC TAB
-  Widget _buildRequestList(List<RequestModel> requests) {
-    // 1. Lọc dữ liệu theo ô tìm kiếm
-    final filteredData = requests.where((request) {
-      // Tìm theo tên danh mục (title)
-      return request.categoryName.toLowerCase().contains(_searchQuery);
-    }).toList();
+  // --- HÀM HỖ TRỢ LOGIC ---
 
-    // 2. Hiển thị UI trống nếu không tìm thấy
-    if (filteredData.isEmpty) {
-      return const Center(
-        child: Text('Không tìm thấy kết quả nào', style: TextStyle(color: AppColors.gray500)),
-      );
+  String _getStatusLabel(String status) {
+    switch (status) {
+      case 'pending': return 'Chờ tiếp nhận';
+      case 'processing': return 'Đang xử lý';
+      case 'completed': return 'Hoàn thành';
+      case 'rejected': return 'Đã huỷ';
+      default: return 'Không xác định';
     }
+  }
 
-    // 3. Hiển thị danh sách kết quả thật
-    return ListView.builder(
-      padding: const EdgeInsets.all(16.0),
-      itemCount: filteredData.length,
-      itemBuilder: (context, index) {
-        final request = filteredData[index]; // Đây là dữ liệu thật từ TV2
-        
-        // Chuyển đổi trạng thái từ TV2 sang UI của bạn
-        Color statusColor = AppColors.primarySV;
-        IconData statusIcon = Icons.more_horiz;
-        int statusCode = 1;
+  Color _getStatusColor(String status) {
+    switch (status) {
+      case 'pending': return Colors.blue;
+      case 'processing': return Colors.orange;
+      case 'completed': return Colors.green;
+      case 'rejected': return Colors.red;
+      default: return Colors.grey;
+    }
+  }
 
-        switch (request.status.name) {
-          case 'pending':
-            statusColor = AppColors.primarySV; statusIcon = Icons.more_horiz; statusCode = 1; break;
-          case 'processing':
-            statusColor = AppColors.warning; statusIcon = Icons.hourglass_empty; statusCode = 2; break;
-          case 'completed':
-            statusColor = AppColors.success; statusIcon = Icons.check; statusCode = 4; break;
-          case 'rejected':
-            statusColor = AppColors.danger; statusIcon = Icons.close; statusCode = 0; break;
-        }
+  IconData _getStatusIcon(String status) {
+    switch (status) {
+      case 'pending': return Icons.timer_outlined;
+      case 'processing': return Icons.sync_rounded;
+      case 'completed': return Icons.check_circle_outline_rounded;
+      case 'rejected': return Icons.cancel_outlined;
+      default: return Icons.help_outline_rounded;
+    }
+  }
 
-        return _buildRequestCard(
-          context: context,
-          request: request,
-          title: request.categoryName, // Lấy tên yêu cầu
-          // Format ngày tháng (có thể dùng package intl để format đẹp hơn sau)
-          date: "${request.createdAt.day}/${request.createdAt.month}/${request.createdAt.year}", 
-          statusCode: statusCode, 
-          statusColor: statusColor,
-          icon: statusIcon,
-        );
-      },
+  Widget _buildShimmerLoading() {
+    return Padding(
+      padding: const EdgeInsets.all(16),
+      child: Shimmer.fromColors(
+        baseColor: Colors.grey[300]!,
+        highlightColor: Colors.grey[100]!,
+        // Thay đổi hoàn toàn từ ListView sang Column để tránh lỗi "unbounded height"
+        child: Column(
+          children: List.generate(5, (index) => Container(
+            margin: const EdgeInsets.only(bottom: 16),
+            height: 90,
+            decoration: BoxDecoration(
+              color: Colors.white, 
+              borderRadius: BorderRadius.circular(24),
+            ),
+          )),
+        ),
+      ),
     );
   }
 
-  Widget _buildRequestCard({
-    required BuildContext context, 
-    required RequestModel request,
-    required String title, 
-    required String date,
-    required int statusCode, 
-    required Color statusColor, 
-    required IconData icon,
-  }) {
-    return GestureDetector(
-      onTap: () {
-        Navigator.push(
-          context,
-          MaterialPageRoute(
-            builder: (context) => RequestDetailScreen(request: request), // Truyền nguyên model thật
-          ),
-        );
-      },
-      child: Container(
-        margin: const EdgeInsets.only(bottom: 12), // Giảm khoảng cách giữa các thẻ một chút
-        padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14), // Giảm padding dọc giúp thẻ thon gọn hơn
-        decoration: BoxDecoration(
-          color: AppColors.white, 
-          borderRadius: BorderRadius.circular(12),
-          border: Border.all(color: statusColor, width: 1.2), // Viền mảnh lại một chút cho thanh thoát
-        ),
-        child: Row(
-          crossAxisAlignment: CrossAxisAlignment.center,
-          children: [
-            // 1. Icon bên trái (Thu nhỏ nhẹ)
-            Container(
-              padding: const EdgeInsets.all(8), 
-              decoration: BoxDecoration(color: statusColor, shape: BoxShape.circle),
-              child: Icon(icon, color: Colors.white, size: 18), // Size 20 -> 18
-            ),
-            const SizedBox(width: 14), // Khoảng cách icon và chữ
-            
-            // 2. Nội dung ở giữa
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                mainAxisAlignment: MainAxisAlignment.center,
-                children: [
-                  Text(
-                    title, 
-                    style: const TextStyle(fontSize: 15, fontWeight: FontWeight.bold, color: AppColors.gray900),
-                    maxLines: 1, 
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                  const SizedBox(height: 6),
-                  Text('Ngày gửi: $date', style: const TextStyle(fontSize: 12, color: AppColors.gray500)),
-                ],
-              ),
-            ),
-            const SizedBox(width: 8),
-            
-            // 3. Viên thuốc trạng thái (Căn giữa thẻ, thay thế mũi tên)
-            Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6), 
-              decoration: BoxDecoration(color: statusColor.withOpacity(0.1), borderRadius: BorderRadius.circular(12)),
-              child: Text(
-                _getStatusName(statusCode), 
-                style: TextStyle(color: statusColor, fontSize: 10, fontWeight: FontWeight.bold),
-              ),
-            ),
-          ],
-        ),
+  Widget _buildEmptyState() {
+    return Center(
+      child: Column(
+        mainAxisAlignment: MainAxisAlignment.center,
+        children: [
+          Icon(Icons.history_edu_rounded, size: 80, color: AppColors.gray200),
+          const SizedBox(height: 16),
+          const Text("Bạn chưa có yêu cầu nào", style: TextStyle(color: AppColors.gray500, fontSize: 16)),
+        ],
       ),
     );
   }

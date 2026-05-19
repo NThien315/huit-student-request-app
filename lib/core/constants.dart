@@ -1,4 +1,3 @@
-// lib/core/constants.dart
 // Cấu hình Supabase Storage
 
 class SupabaseConfig {

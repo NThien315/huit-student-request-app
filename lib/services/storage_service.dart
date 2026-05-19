@@ -1,7 +1,3 @@
-// lib/services/storage_service.dart
-// TV2 — Upload file đính kèm lên Supabase Storage (thay Firebase Storage)
-// Lý do: Firebase Storage yêu cầu gói Blaze (cần thẻ Visa),
-//        Supabase Storage miễn phí 1GB, không cần thẻ.
 
 import 'dart:io';
 import 'package:supabase_flutter/supabase_flutter.dart';

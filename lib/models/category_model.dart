@@ -1,16 +1,10 @@
-// lib/models/category_model.dart
-// TV2 — Thiết kế cấu trúc dữ liệu danh mục yêu cầu (Task 2.2)
-
-import 'package:cloud_firestore/cloud_firestore.dart';
-
 // ─── Model danh mục yêu cầu ──────────────────────────────────────────────────
-// Firestore path: /requestCategories/{categoryId}
-// Ví dụ: Xin bảng điểm, Xác nhận sinh viên, Phúc khảo...
+// Supabase table: request_categories
 class CategoryModel {
   final String id;
   final String name;
   final String description;
-  final bool isActive; // Admin có thể ẩn danh mục mà không cần xóa
+  final bool isActive; 
   final DateTime createdAt;
 
   const CategoryModel({
@@ -21,39 +15,32 @@ class CategoryModel {
     required this.createdAt,
   });
 
-  // ── Từ Firestore Document → CategoryModel ──────────────────────────────────
-  factory CategoryModel.fromDoc(DocumentSnapshot doc) {
-    final map = doc.data() as Map<String, dynamic>;
+  // ── Từ Supabase Row (Map) → CategoryModel ──────────────────────────────────
+  factory CategoryModel.fromMap(Map<String, dynamic> map) {
     return CategoryModel(
-      id: doc.id,
+      id: map['id'].toString(), // Supabase trả về ID thẳng trong map
       name: map['name'] as String? ?? '',
       description: map['description'] as String? ?? '',
       isActive: map['isActive'] as bool? ?? true,
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      createdAt: DateTime.tryParse(map['createdAt']?.toString() ?? '') ?? DateTime.now(),
     );
   }
 
-  factory CategoryModel.fromMap(String id, Map<String, dynamic> map) {
-    return CategoryModel(
-      id: id,
-      name: map['name'] as String? ?? '',
-      description: map['description'] as String? ?? '',
-      isActive: map['isActive'] as bool? ?? true,
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-    );
-  }
-
-  // ── CategoryModel → Map để lưu lên Firestore ───────────────────────────────
+  // ── CategoryModel → Map để lưu lên Supabase ───────────────────────────────
   Map<String, dynamic> toMap() {
     return {
       'name': name,
       'description': description,
       'isActive': isActive,
-      'createdAt': Timestamp.fromDate(createdAt),
+      'createdAt': createdAt.toIso8601String(),
     };
   }
 
-  CategoryModel copyWith({String? name, String? description, bool? isActive}) {
+  CategoryModel copyWith({
+    String? name, 
+    String? description, 
+    bool? isActive
+  }) {
     return CategoryModel(
       id: id,
       name: name ?? this.name,
@@ -63,6 +50,7 @@ class CategoryModel {
     );
   }
 
+  // Fix lỗi màn hình đỏ Dropdown
   @override
   bool operator ==(Object other) {
     if (identical(this, other)) return true;

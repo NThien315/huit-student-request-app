@@ -1,6 +1,11 @@
 import 'package:flutter/material.dart';
-import 'package:shared_preferences/shared_preferences.dart'; // Import thư viện
-import 'onboarding_screen.dart';
+import 'package:huit_student_request_app/ui/screens/student/main_navigation.dart';
+import 'package:provider/provider.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
+import '../../../core/theme.dart';
+import '../../../services/notification_service.dart';
+import '../../../state/auth_provider.dart';
 import 'login_screen.dart';
 
 class SplashScreen extends StatefulWidget {
@@ -10,36 +15,67 @@ class SplashScreen extends StatefulWidget {
   State<SplashScreen> createState() => _SplashScreenState();
 }
 
-class _SplashScreenState extends State<SplashScreen> {
+// Bổ sung SingleTickerProviderStateMixin để chạy Animation
+class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderStateMixin {
+  late AnimationController _animationController;
+  late Animation<double> _fadeAnimation;
+  late Animation<double> _scaleAnimation;
+
   @override
   void initState() {
     super.initState();
-    // Tự động chuyển trang sau 2.5 giây
-    _checkRouting();
+    
+    // CẤU HÌNH HIỆU ỨNG CHUYỂN ĐỘNG (1.5 giây)
+    _animationController = AnimationController(
+      vsync: this,
+      duration: const Duration(milliseconds: 1500),
+    );
+    _fadeAnimation = Tween<double>(begin: 0.0, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeIn)
+    );
+    _scaleAnimation = Tween<double>(begin: 0.7, end: 1.0).animate(
+      CurvedAnimation(parent: _animationController, curve: Curves.easeOutBack)
+    );
+    
+    _animationController.forward(); // Bắt đầu chạy hiệu ứng
+    _initializeApp();
   }
 
-  Future<void> _checkRouting() async {
-    // 1. Chờ 2.5 giây để hiện logo
-    await Future.delayed(const Duration(milliseconds: 2500));
-    
-    // 2. Đọc dữ liệu từ bộ nhớ
-    SharedPreferences prefs = await SharedPreferences.getInstance();
-    // Nếu chưa từng lưu, giá trị mặc định sẽ là false
-    bool seenOnboard = prefs.getBool('seenOnboard') ?? false;
+  @override
+  void dispose() {
+    _animationController.dispose();
+    super.dispose();
+  }
 
-    // 3. Quyết định chuyển trang
-    if (mounted) {
-      if (seenOnboard == true) {
-        // Đã xem Onboarding -> Nhảy thẳng vào Đăng nhập
+  Future<void> _initializeApp() async {
+    // Kích hoạt dịch vụ thông báo ngầm
+    await NotificationService.initNotification();
+
+    final session = Supabase.instance.client.auth.currentSession;
+    final prefs = await SharedPreferences.getInstance();
+    final rememberMe = prefs.getBool('remember_me') ?? false;
+
+    // Bắt buộc dừng lại 2.2 giây để người dùng kịp ngắm logo và hiệu ứng
+    await Future.delayed(const Duration(milliseconds: 2200));
+
+    if (!mounted) return;
+
+    if (session != null && rememberMe) {
+      await context.read<AuthProvider>().initAutoLogin();
+      
+      if (mounted) {
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const MainNavigation()),
+        );
+      }
+    } else {
+      await Supabase.instance.client.auth.signOut();
+      
+      if (mounted) {
         Navigator.pushReplacement(
           context,
           MaterialPageRoute(builder: (context) => const LoginScreen()),
-        );
-      } else {
-        // Chưa xem -> Chuyển sang Onboarding
-        Navigator.pushReplacement(
-          context,
-          MaterialPageRoute(builder: (context) => const OnboardingScreen()),
         );
       }
     }
@@ -48,44 +84,94 @@ class _SplashScreenState extends State<SplashScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      // Màu nền Gradient xanh dương
       body: Container(
         width: double.infinity,
-        decoration: const BoxDecoration(
+        decoration: BoxDecoration(
           gradient: LinearGradient(
-            begin: Alignment.topLeft,
-            end: Alignment.bottomRight,
-            colors: [Color(0xFF0D1B4A), Color(0xFF1A6BFF)],
+            colors: [AppColors.white, AppColors.primarySV.withValues(alpha: 0.08)],
+            begin: Alignment.topCenter,
+            end: Alignment.bottomCenter,
           ),
         ),
-        child: const Column(
+        child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Text(
-              '🎓',
-              style: TextStyle(fontSize: 60),
-            ),
-            SizedBox(height: 16),
-            Text(
-              'HDPE\nStudent Request',
-              textAlign: TextAlign.center,
-              style: TextStyle(
-                color: Colors.white,
-                fontSize: 24,
-                fontWeight: FontWeight.bold,
-                height: 1.2,
+            const Spacer(),
+            
+            // ─── LOGO BO GÓC 3D CÓ ANIMATION ───
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: ScaleTransition(
+                scale: _scaleAnimation,
+                child: Container(
+                  padding: const EdgeInsets.all(24),
+                  decoration: BoxDecoration(
+                    color: Colors.white,
+                    borderRadius: BorderRadius.circular(36), 
+                    boxShadow: [
+                      BoxShadow(
+                        color: AppColors.primarySV.withValues(alpha: 0.15),
+                        blurRadius: 40,
+                        offset: const Offset(0, 15),
+                      )
+                    ],
+                  ),
+                  child: ClipRRect(
+                    borderRadius: BorderRadius.circular(20),
+                    child: Image.asset(
+                      'assets/images/logo.png',
+                      width: 110,
+                      height: 110,
+                      fit: BoxFit.contain,
+                    ),
+                  ),
+                ),
               ),
             ),
-            SizedBox(height: 8),
-            Text(
-              'Khoa Công nghệ Thông tin',
-              style: TextStyle(
-                color: Colors.white70,
-                fontSize: 12,
+            
+            const SizedBox(height: 32),
+            
+            // ─── TÊN ỨNG DỤNG VÀ TRƯỜNG ───
+            FadeTransition(
+              opacity: _fadeAnimation,
+              child: const Column(
+                children: [
+                  Text(
+                    'HDPE REQUEST',
+                    style: TextStyle(
+                      fontSize: 28,
+                      fontWeight: FontWeight.w900,
+                      letterSpacing: 2.0,
+                      color: AppColors.primarySV,
+                    ),
+                  ),
+                  SizedBox(height: 8),
+                  Text(
+                    'Học Đến Phút End',
+                    style: TextStyle(
+                      fontSize: 14,
+                      fontWeight: FontWeight.w600,
+                      color: AppColors.gray500,
+                      letterSpacing: 0.5,
+                    ),
+                  ),
+                ],
               ),
             ),
-            SizedBox(height: 40),
-            CircularProgressIndicator(color: Colors.white), // Vòng xoay load
+            
+            const Spacer(),
+            
+            // ─── LOADING BOTTOM ───
+            const CircularProgressIndicator(
+              color: AppColors.primarySV,
+              strokeWidth: 3.5,
+            ),
+            const SizedBox(height: 24),
+            const Text(
+              'Đang tải dữ liệu hệ thống...',
+              style: TextStyle(color: AppColors.gray500, fontSize: 13, fontWeight: FontWeight.w500),
+            ),
+            const SizedBox(height: 40),
           ],
         ),
       ),
