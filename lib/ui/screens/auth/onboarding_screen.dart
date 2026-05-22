@@ -43,8 +43,13 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
         elevation: 0,
         actions: [
           TextButton(
-            onPressed: () {
-              _storeOnboardInfo();
+            onPressed: () async {
+              final prefs = await SharedPreferences.getInstance();
+              await prefs.setBool('isFirstTime', false);
+              
+              _storeOnboardInfo(); // Dòng cũ của bạn
+              
+              if (!context.mounted) return;
               Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));
             },
             child: const Text("Bỏ qua", style: TextStyle(color: AppColors.gray500, fontSize: 16)),
@@ -104,7 +109,10 @@ class _OnboardingScreenState extends State<OnboardingScreen> {
             margin: const EdgeInsets.all(40),
             width: double.infinity,
             child: ElevatedButton(
-              onPressed: () {
+              onPressed: () async {
+                final prefs = await SharedPreferences.getInstance();
+                await prefs.setBool('isFirstTime', false);
+                if (!context.mounted) return;
                 if (currentIndex == contents.length - 1) {
                   _storeOnboardInfo();
                   Navigator.pushReplacement(context, MaterialPageRoute(builder: (_) => const LoginScreen()));

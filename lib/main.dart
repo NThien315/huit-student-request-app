@@ -1,40 +1,34 @@
+// lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
 import 'package:provider/provider.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
-// UI của TV1
-import 'package:huit_student_request_app/ui/screens/student/main_navigation.dart';
 import 'core/theme.dart';
-import 'ui/screens/auth/login_screen.dart';
-
-// Dịch vụ Backend của TV2
 import 'firebase_options.dart'; 
 import 'state/auth_provider.dart';
-import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
-import 'services/auth_service.dart';
+import 'ui/screens/auth/splash_screen.dart';
 
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
-  // Khởi tạo Firebase
+  // 1. Khởi tạo Supabase
+  await Supabase.initialize(
+    url: 'https://eqiwsekizowaklmxghkw.supabase.co',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaXdzZWtpem93YWtsbXhnaGt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NzY2NzEsImV4cCI6MjA5NDI1MjY3MX0.ZrzgIpOa474j7kn_gOHIdPBykig4XiU2Wt3Gd3hpCnk',
+  );
+
+  // 2. Khởi tạo Firebase (Dùng cho Push Notification)
   await Firebase.initializeApp(
     options: DefaultFirebaseOptions.currentPlatform,
   );
 
-  // Khởi tạo Push Notification (Bọc try-catch để lỡ thiếu config cũng không bị crash văng app)
+  // 3. Khởi tạo Dịch vụ Thông báo
   try {
-    final notificationService = NotificationService(AuthService());
-    await notificationService.initialize();
+    await NotificationService.initNotification();
   } catch (e) {
-    debugPrint("Bỏ qua lỗi khởi tạo Notification tạm thời: $e");
-  }
-
-  // Seed danh mục mẫu nếu Firestore chưa có dữ liệu
-  try {
-    await FirestoreService().seedCategories();
-  } catch (e) {
-    debugPrint("Bỏ qua lỗi seed data do chưa đăng nhập: $e");
+    debugPrint("Bỏ qua lỗi khởi tạo Notification: $e");
   }
 
   runApp(const HdpeApp());
@@ -48,67 +42,14 @@ class HdpeApp extends StatelessWidget {
     return MultiProvider(
       providers: [
         ChangeNotifierProvider(create: (_) => AuthProvider()),
-        // Thêm các Provider khác ở đây khi TV3 hoàn thành State Management
       ],
       child: MaterialApp(
         title: 'HDPE – Hỗ trợ Sinh viên',
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme, 
-        // QUAN TRỌNG: Gọi Trạm kiểm soát _AppEntry thay vì xông thẳng vào MainNavigation
-        home: const _AppEntry(), 
+        
+        home: const SplashScreen(), 
       ),
     );
-  }
-}
-
-// ─── TRẠM KIỂM SOÁT ĐIỀU HƯỚNG THEO TRẠNG THÁI ĐĂNG NHẬP ────────────────────────────────
-class _AppEntry extends StatefulWidget {
-  const _AppEntry();
-
-  @override
-  State<_AppEntry> createState() => _AppEntryState();
-}
-
-class _AppEntryState extends State<_AppEntry> {
-  @override
-  void initState() {
-    super.initState();
-    // Auto-login nếu còn session
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      context.read<AuthProvider>().checkAuthState();
-    });
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    final auth = context.watch<AuthProvider>();
-
-    // 1. Đang tải / Đang kiểm tra session -> Hiện vòng xoay
-    if (auth.isLoading) {
-      return const Scaffold(
-        backgroundColor: AppColors.white,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primarySV)),
-      );
-    }
-
-    // 2. Nếu ĐÃ ĐĂNG NHẬP
-    if (auth.isAuthenticated) {
-      // ─ Phân luồng giao diện theo Role ─────────────────────────────────────────────
-      if (auth.isStudent) {
-        // Sinh viên -> Trả về giao diện xịn xò của TV1
-        return const MainNavigation(); 
-      } else if (auth.isStaff) {
-        return const Scaffold(
-          body: Center(child: Text('Giao diện Giáo vụ (Sẽ tích hợp sau)')),
-        );
-      } else {
-        return const Scaffold(
-          body: Center(child: Text('Giao diện Admin (Sẽ tích hợp sau)')),
-        );
-      }
-    }
-
-    // 3. CHƯA ĐĂNG NHẬP -> Bắt ra cổng LoginScreen của TV1
-    return const LoginScreen();
   }
 }

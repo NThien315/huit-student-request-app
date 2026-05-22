@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:huit_student_request_app/ui/screens/auth/onboarding_screen.dart';
 import 'package:huit_student_request_app/ui/screens/student/main_navigation.dart';
 import 'package:provider/provider.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -51,15 +52,29 @@ class _SplashScreenState extends State<SplashScreen> with SingleTickerProviderSt
     // Kích hoạt dịch vụ thông báo ngầm
     await NotificationService.initNotification();
 
+    // Lấy thông tin phiên và trạng thái từ máy
     final session = Supabase.instance.client.auth.currentSession;
     final prefs = await SharedPreferences.getInstance();
+    
+    // ĐỌC BIẾN ONBOARDING VÀ GHI NHỚ ĐĂNG NHẬP
+    final isFirstTime = prefs.getBool('isFirstTime') ?? true;
     final rememberMe = prefs.getBool('remember_me') ?? false;
 
-    // Bắt buộc dừng lại 2.2 giây để người dùng kịp ngắm logo và hiệu ứng
+    // Dừng lại 2.2 giây để người dùng kịp ngắm logo và hiệu ứng
     await Future.delayed(const Duration(milliseconds: 2200));
 
     if (!mounted) return;
 
+    // ─── 1. RẼ NHÁNH 1: LẦN ĐẦU MỞ APP -> VÀO ONBOARDING ───
+    if (isFirstTime) {
+      Navigator.pushReplacement(
+        context,
+        MaterialPageRoute(builder: (context) => const OnboardingScreen()),
+      );
+      return; // Dừng lại ở đây
+    }
+
+    // ─── 2. RẼ NHÁNH 2: ĐÃ XEM ONBOARDING -> KIỂM TRA ĐĂNG NHẬP ───
     if (session != null && rememberMe) {
       await context.read<AuthProvider>().initAutoLogin();
       

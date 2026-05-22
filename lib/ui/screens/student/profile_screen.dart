@@ -347,7 +347,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
                           await AuthService().signOut();
                           
                           if (context.mounted) {
-                            context.read<AuthProvider>().checkAuthState();
+                            context.read<AuthProvider>().initAutoLogin();
                             
                             // Chuyển thẳng về màn hình Login và xóa sạch lịch sử
                             Navigator.pushAndRemoveUntil(

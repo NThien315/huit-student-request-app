@@ -554,9 +554,9 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                     Navigator.pop(bottomSheetContext);
                     final picker = ImagePicker();
                     final pickedFile = await picker.pickImage(source: ImageSource.gallery);
-                    if (!mounted) return;
                     if (pickedFile != null) {
                       final fileSize = await File(pickedFile.path).length();
+                      if (!context.mounted) return;
                       if (fileSize > 5 * 1024 * 1024) {
                         GlassToast.show(context, 'Tệp quá lớn! Vui lòng chọn tệp dưới 5MB', isError: true);
                         return;
@@ -571,8 +571,8 @@ class _CreateRequestScreenState extends State<CreateRequestScreen> {
                   onTap: () async {
                     Navigator.pop(bottomSheetContext);
                     FilePickerResult? result = await FilePicker.pickFiles();
-                    if (!mounted) return;
                     if (result != null && result.files.single.path != null) {
+                      if (!context.mounted) return;
                       if (result.files.single.size > 5 * 1024 * 1024) {
                         GlassToast.show(context, 'Tệp quá lớn! Vui lòng chọn tệp dưới 5MB', isError: true);
                         return;
