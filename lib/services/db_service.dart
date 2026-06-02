@@ -212,4 +212,28 @@ class DbService {
   Future<void> seedCategories() {
     return _firestoreService.seedCategories();
   }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // TÀI KHOẢN TEST (Seed Test Accounts)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /// Tạo 3 tài khoản test (Admin, Giáo vụ, Sinh viên) — chạy 1 lần
+  ///
+  /// Tài khoản được tạo:
+  /// - Admin:     admin@huit.edu.vn / Admin@123
+  /// - Giáo vụ:   giaovu@huit.edu.vn / Staff@123
+  /// - Sinh viên: sinhvien@huit.edu.vn / Student@123
+  Future<void> seedTestAccounts() {
+    return _authService.seedTestAccounts();
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // KIỂM TRA DATABASE (Database Health Check)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /// Kiểm tra database có hoạt động ổn không
+  /// Trả về report chi tiết: số lượng users, categories, requests
+  Future<Map<String, dynamic>> verifyDatabase() {
+    return _authService.verifyDatabase();
+  }
 }

@@ -33,6 +33,13 @@ void main() async {
   // Seed danh mục mẫu nếu Firestore chưa có dữ liệu
   await FirestoreService().seedCategories();
 
+  // Seed tài khoản test (Admin/Giáo vụ/Sinh viên) — chạy 1 lần
+  final authService2 = AuthService();
+  await authService2.seedTestAccounts();
+
+  // Kiểm tra database có ổn không
+  await authService2.verifyDatabase();
+
   runApp(const HdpeApp());
 }
 

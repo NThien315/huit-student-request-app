@@ -43,3 +43,8 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Firebase Service Account Credentials (chìa khóa bảo mật admin)
+*-firebase-adminsdk-*.json
+*.secret.json
+supabase_service_account.json
