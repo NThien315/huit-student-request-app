@@ -8,19 +8,20 @@ import 'core/theme.dart';
 import 'ui/screens/auth/login_screen.dart';
 
 // Dịch vụ Backend của TV2
-import 'firebase_options.dart'; 
+import 'firebase_options.dart';
 import 'state/auth_provider.dart';
 import 'services/firestore_service.dart';
 import 'services/notification_service.dart';
 import 'services/auth_service.dart';
 
+import 'ui/screens/admin/admin_web_dashboard.dart';
+import 'ui/screens/admin/admin_home_screen.dart';
+
 void main() async {
   WidgetsFlutterBinding.ensureInitialized();
 
   // Khởi tạo Firebase
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
+  await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
 
   // Khởi tạo Push Notification (Bọc try-catch để lỡ thiếu config cũng không bị crash văng app)
   try {
@@ -53,9 +54,9 @@ class HdpeApp extends StatelessWidget {
       child: MaterialApp(
         title: 'HDPE – Hỗ trợ Sinh viên',
         debugShowCheckedModeBanner: false,
-        theme: AppTheme.lightTheme, 
+        theme: AppTheme.lightTheme,
         // QUAN TRỌNG: Gọi Trạm kiểm soát _AppEntry thay vì xông thẳng vào MainNavigation
-        home: const _AppEntry(), 
+        home: const _AppEntry(),
       ),
     );
   }
@@ -87,7 +88,9 @@ class _AppEntryState extends State<_AppEntry> {
     if (auth.isLoading) {
       return const Scaffold(
         backgroundColor: AppColors.white,
-        body: Center(child: CircularProgressIndicator(color: AppColors.primarySV)),
+        body: Center(
+          child: CircularProgressIndicator(color: AppColors.primarySV),
+        ),
       );
     }
 
@@ -96,15 +99,13 @@ class _AppEntryState extends State<_AppEntry> {
       // ─ Phân luồng giao diện theo Role ─────────────────────────────────────────────
       if (auth.isStudent) {
         // Sinh viên -> Trả về giao diện xịn xò của TV1
-        return const MainNavigation(); 
+        return const MainNavigation();
       } else if (auth.isStaff) {
         return const Scaffold(
           body: Center(child: Text('Giao diện Giáo vụ (Sẽ tích hợp sau)')),
         );
       } else {
-        return const Scaffold(
-          body: Center(child: Text('Giao diện Admin (Sẽ tích hợp sau)')),
-        );
+        return const AdminWebDashboard();
       }
     }
 
