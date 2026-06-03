@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 
 // UI của TV1
@@ -22,6 +23,12 @@ void main() async {
 
   // Khởi tạo Firebase
   await Firebase.initializeApp(options: DefaultFirebaseOptions.currentPlatform);
+
+  // Khởi tạo Supabase (BẮT BUỘC ĐỂ KHÔNG CRASH APP)
+  await Supabase.initialize(
+    url: 'YOUR_SUPABASE_URL', // Thay bằng URL thật của project Supabase
+    anonKey: 'YOUR_SUPABASE_ANON_KEY', // Thay bằng Anon Key thật
+  );
 
   // Khởi tạo Push Notification (Bọc try-catch để lỡ thiếu config cũng không bị crash văng app)
   try {
