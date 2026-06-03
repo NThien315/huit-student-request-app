@@ -48,3 +48,7 @@ app.*.map.json
 *-firebase-adminsdk-*.json
 *.secret.json
 supabase_service_account.json
+
+# Supabase local config (không push lên GitHub)
+supabase/.env
+supabase/.temp/

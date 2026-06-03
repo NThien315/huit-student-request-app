@@ -1,14 +1,18 @@
 // lib/services/firestore_service.dart
 // TV2 — Code API / Thiết lập Firestore (Task 3.2)
 // Handles: CRUD yêu cầu, danh mục, quản lý người dùng
+// Updated: Tích hợp Push Notification qua Supabase khi cập nhật trạng thái
 
 import 'package:cloud_firestore/cloud_firestore.dart';
 import '../models/request_model.dart';
 import '../models/category_model.dart';
 import '../models/user_model.dart';
+import 'supabase_notification_service.dart';
 
 class FirestoreService {
   final FirebaseFirestore _db = FirebaseFirestore.instance;
+  final SupabaseNotificationService _notifService = SupabaseNotificationService();
+
 
   // ════════════════════════════════════════════════════════════════════════════
   // DANH MỤC YÊU CẦU (requestCategories)
@@ -162,7 +166,7 @@ class FirestoreService {
   }
 
   // UC005 — Giáo vụ cập nhật trạng thái + ghi chú phản hồi
-  // Firestore trigger sẽ tự gửi FCM notification sau khi update thành công
+  // Sau khi update Firestore → ghi notification lên Supabase → trigger Edge Function gửi FCM
   Future<void> updateRequestStatus({
     required String requestId,
     required RequestStatus newStatus,
@@ -173,12 +177,57 @@ class FirestoreService {
       throw Exception('Vui lòng nhập lý do từ chối để thông báo cho sinh viên');
     }
 
+    // 1. Cập nhật trạng thái trên Firestore
     await _db.collection('requests').doc(requestId).update({
       'status': newStatus.name,
       'note': note?.trim(),
       'staffUid': staffUid,
       'updatedAt': Timestamp.fromDate(DateTime.now()),
     });
+
+    // 2. Gửi push notification cho sinh viên qua Supabase → FCM
+    // Lấy thông tin yêu cầu để biết studentUid và categoryName
+    try {
+      final requestDoc = await _db.collection('requests').doc(requestId).get();
+      if (requestDoc.exists && requestDoc.data() != null) {
+        final data = requestDoc.data()!;
+        final studentUid = data['studentUid'] as String? ?? '';
+        final categoryName = data['categoryName'] as String? ?? 'yêu cầu';
+
+        if (studentUid.isNotEmpty) {
+          switch (newStatus) {
+            case RequestStatus.processing:
+              await _notifService.notifyRequestProcessing(
+                studentUid: studentUid,
+                requestId: requestId,
+                categoryName: categoryName,
+              );
+              break;
+            case RequestStatus.completed:
+              await _notifService.notifyRequestCompleted(
+                studentUid: studentUid,
+                requestId: requestId,
+                categoryName: categoryName,
+              );
+              break;
+            case RequestStatus.rejected:
+              await _notifService.notifyRequestRejected(
+                studentUid: studentUid,
+                requestId: requestId,
+                categoryName: categoryName,
+                reason: note,
+              );
+              break;
+            case RequestStatus.pending:
+              // Không gửi notification khi quay lại pending
+              break;
+          }
+        }
+      }
+    } catch (e) {
+      // Notification là tính năng phụ — không block flow cập nhật trạng thái
+      print('[FirestoreService] ⚠️ Lỗi gửi notification: $e');
+    }
   }
 
   // ════════════════════════════════════════════════════════════════════════════

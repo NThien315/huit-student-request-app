@@ -4,6 +4,7 @@
 
 import 'package:firebase_messaging/firebase_messaging.dart';
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'auth_service.dart';
 
 // ── Top-level handler: bắt buộc phải nằm ngoài class để Flutter có thể gọi ──
@@ -119,15 +120,30 @@ class NotificationService {
         ?.createNotificationChannel(channel);
   }
 
-  // ──────────────────────────────────────────────────────────────────────────
-  // Lấy FCM token và lưu vào Firestore → dùng để server gửi notification đúng thiết bị
-  // ──────────────────────────────────────────────────────────────────────────
+  // ──────────────────────────────────────────────────────────────────────────────
+  // Lấy FCM token và lưu vào Firestore + Supabase
+  // Firestore: dùng cho app Flutter đọc trực tiếp
+  // Supabase: dùng cho Edge Function gửi FCM notification
+  // ──────────────────────────────────────────────────────────────────────────────
   Future<void> _saveTokenToFirestore([String? token]) async {
     token ??= await _fcm.getToken();
     final user = _authService.currentUser;
     if (token != null && user != null) {
+      // Lưu vào Firestore (như cũ)
       await _authService.updateFcmToken(user.uid, token);
-      print('[FCM] Token saved for uid: ${user.uid}');
+      print('[FCM] Token saved to Firestore for uid: ${user.uid}');
+
+      // Sync lên Supabase (để Edge Function đọc được)
+      try {
+        await Supabase.instance.client.from('users').upsert({
+          'uid': user.uid,
+          'fcm_token': token,
+          'email': user.email,
+        }, onConflict: 'uid');
+        print('[FCM] Token synced to Supabase for uid: ${user.uid}');
+      } catch (e) {
+        print('[FCM] ⚠️ Lỗi sync token lên Supabase: $e');
+      }
     }
   }
 

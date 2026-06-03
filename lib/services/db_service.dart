@@ -8,6 +8,7 @@ import '../models/request_model.dart';
 import '../models/category_model.dart';
 import 'firestore_service.dart';
 import 'auth_service.dart';
+import 'supabase_notification_service.dart';
 
 /// DbService — Lớp trung gian (Facade pattern) quản lý toàn bộ thao tác
 /// đọc/ghi dữ liệu giữa Flutter app và Firebase.
@@ -30,6 +31,7 @@ import 'auth_service.dart';
 class DbService {
   final FirestoreService _firestoreService = FirestoreService();
   final AuthService _authService = AuthService();
+  final SupabaseNotificationService _notifService = SupabaseNotificationService();
 
   // ════════════════════════════════════════════════════════════════════════════
   // XÁC THỰC (Authentication)
@@ -235,5 +237,19 @@ class DbService {
   /// Trả về report chi tiết: số lượng users, categories, requests
   Future<Map<String, dynamic>> verifyDatabase() {
     return _authService.verifyDatabase();
+  }
+
+  // ════════════════════════════════════════════════════════════════════════════
+  // THÔNG BÁO ĐẨY (Push Notifications)
+  // ════════════════════════════════════════════════════════════════════════════
+
+  /// Lấy danh sách thông báo của sinh viên (từ Supabase)
+  Future<List<Map<String, dynamic>>> getNotifications(String studentUid) {
+    return _notifService.getNotifications(studentUid);
+  }
+
+  /// Đánh dấu thông báo đã đọc
+  Future<void> markNotificationAsRead(String notificationId) {
+    return _notifService.markAsRead(notificationId);
   }
 }
