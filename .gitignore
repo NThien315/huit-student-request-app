@@ -43,3 +43,11 @@ app.*.map.json
 /android/app/debug
 /android/app/profile
 /android/app/release
+
+# Chặn file chìa khóa Firebase của Edge Function
+supabase/functions/send-fcm/service-account.json
+
+# Chặn các file cấu hình môi trường địa phương của Supabase nếu có
+.env
+supabase/.temp/
+.supabase/

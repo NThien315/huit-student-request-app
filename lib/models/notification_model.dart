@@ -23,19 +23,27 @@ class NotificationModel {
   });
 
   factory NotificationModel.fromMap(Map<String, dynamic> map) {
+    final String titleLower = (map['title'] ?? '').toString().toLowerCase();
+    final String bodyLower = (map['body'] ?? '').toString().toLowerCase();
+    
+    NotificationType calculatedType = NotificationType.info;
+    if (titleLower.contains('từ chối') || titleLower.contains('❌') || bodyLower.contains('không hợp lệ')) {
+      calculatedType = NotificationType.danger;
+    } else if (titleLower.contains('thành công') || titleLower.contains('đã duyệt') || titleLower.contains('✅')) {
+      calculatedType = NotificationType.success;
+    } else if (titleLower.contains('bổ sung') || titleLower.contains('yêu cầu')) {
+      calculatedType = NotificationType.warning;
+    }
+
     return NotificationModel(
       id: map['id'] ?? '',
-      studentUid: map['studentUid'] ?? '',
+      studentUid: map['student_uid'] ?? '', 
       title: map['title'] ?? '',
       body: map['body'] ?? '',
-      // Map string từ DB sang Enum trong Flutter
-      type: NotificationType.values.firstWhere(
-        (e) => e.name == map['type'],
-        orElse: () => NotificationType.info,
-      ),
-      isRead: map['isRead'] ?? false,
-      createdAt: map['createdAt'] != null 
-          ? DateTime.parse(map['createdAt']).toLocal() 
+      type: calculatedType,
+      isRead: map['is_read'] ?? false, 
+      createdAt: map['created_at'] != null 
+          ? DateTime.parse(map['created_at']).toLocal()
           : DateTime.now(),
     );
   }

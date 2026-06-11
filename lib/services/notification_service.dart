@@ -15,36 +15,50 @@ class NotificationService {
       FlutterLocalNotificationsPlugin();
 
   static Future<void> initNotification() async {
-    await Firebase.initializeApp(); 
-    // ──────────────────────────────────────────────────────────────────
-
-    FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
-
-    const AndroidInitializationSettings initializationSettingsAndroid =
-        AndroidInitializationSettings('ic_notification');
-    await _notificationsPlugin.initialize(const InitializationSettings(android: initializationSettingsAndroid));
-
-    // Xin quyền thông báo hiển thị lơ lửng cho Android 13+
-    await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
-
-    // Xử lý nổ banner lơ lửng khi sinh viên ĐANG MỞ APP xem giao diện
-    FirebaseMessaging.onMessage.listen((RemoteMessage message) {
-      if (message.notification != null) {
-        showLocalNotification(
-          id: message.hashCode,
-          title: message.notification!.title ?? 'Cập nhật từ Khoa CNTT',
-          body: message.notification!.body ?? '',
-        );
-      }
-    });
-  }
-
-  // Hàm lấy mã Token định danh thiết bị của điện thoại
-  static Future<String?> getFCMToken() async {
     try {
-      return await FirebaseMessaging.instance.getToken();
+      await Firebase.initializeApp(); 
+
+      FirebaseMessaging.onBackgroundMessage(_firebaseMessagingBackgroundHandler);
+
+      const AndroidNotificationChannel channel = AndroidNotificationChannel(
+        'hdpe_fcm_channel', // 🌟 Phải trùng khớp với hàm hiển thị bên dưới
+        'Thông báo Đơn HDPE',
+        description: 'Kênh hiển thị thông báo xử lý đơn yêu cầu sinh viên HDPE.',
+        importance: Importance.max, 
+        playSound: true,
+      );
+
+      // Khởi tạo icon mặc định cho toàn hệ thống thông báo (Bỏ đuôi .png)
+      const AndroidInitializationSettings initializationSettingsAndroid =
+          AndroidInitializationSettings('ic_notification');
+          
+      await _notificationsPlugin.initialize(
+        const InitializationSettings(android: initializationSettingsAndroid),
+      );
+
+      await _notificationsPlugin
+          .resolvePlatformSpecificImplementation<AndroidFlutterLocalNotificationsPlugin>()
+          ?.createNotificationChannel(channel);
+
+      await FirebaseMessaging.instance.requestPermission(alert: true, badge: true, sound: true);
+
+      await FirebaseMessaging.instance.setForegroundNotificationPresentationOptions(
+        alert: true, badge: true, sound: true,
+      );
+
+      FirebaseMessaging.onMessage.listen((RemoteMessage message) {
+        if (message.notification != null) {
+          NotificationService.showLocalNotification(
+            id: message.hashCode,
+            title: message.notification!.title ?? 'Cập nhật từ Khoa CNTT',
+            body: message.notification!.body ?? '',
+          );
+        }
+      });
+      
+      debugPrint("Hệ thống thông báo đã khởi tạo thành công!");
     } catch (e) {
-      return null;
+      debugPrint("Cảnh báo lỗi cấu hình thông báo: $e");
     }
   }
 
@@ -54,12 +68,22 @@ class NotificationService {
     required String body,
   }) async {
     const AndroidNotificationDetails androidDetails = AndroidNotificationDetails(
-      'huit_fcm_channel',
-      'Thông báo Đơn HUIT',
+      'hdpe_fcm_channel',
+      'Thông báo Đơn HDPE',
       importance: Importance.max,
       priority: Priority.high,
       playSound: true,
+      icon: 'ic_notification', 
     );
     await _notificationsPlugin.show(id, title, body, const NotificationDetails(android: androidDetails));
+  }
+
+  // Hàm lấy mã Token định danh thiết bị của điện thoại
+  static Future<String?> getFCMToken() async {
+    try {
+      return await FirebaseMessaging.instance.getToken();
+    } catch (e) {
+      return null;
+    }
   }
 }

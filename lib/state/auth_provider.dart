@@ -44,15 +44,42 @@ class AuthProvider extends ChangeNotifier {
   // ──────────────────────────────────────────────────────────────────────────
   // Kiểm tra session khi app khởi động
   // ──────────────────────────────────────────────────────────────────────────
-  Future<void> checkAuthState() async {
-    _setLoading(true);
+  Future<void> initAutoLogin() async {
+    _isLoading = true;
+    notifyListeners();
+
     try {
-      // Khi nào TV2 làm xong hàm fetchCurrentUser thì mở dòng này ra nhé
-      // _currentUser = await _authService.fetchCurrentUser();
-    } catch (_) {
+      // 1. Lấy user hiện tại đang lưu trong Session của Supabase
+      final currentUser = Supabase.instance.client.auth.currentUser;
+      
+      if (currentUser != null) {
+        // 2. Nạp chi tiết thông tin từ bảng dữ liệu users
+        final userData = await Supabase.instance.client
+            .from('users')
+            .select()
+            .eq('uid', currentUser.id)
+            .single();
+
+        // 3. Gán vào biến hệ thống -> isAuthenticated tự động thành true
+        _currentUser = UserModel.fromMap(userData);
+
+        // 4. Đồng bộ mã thông báo đẩy FCM
+        final fcmToken = await NotificationService.getFCMToken();
+        if (fcmToken != null) {
+          await Supabase.instance.client
+              .from('users')
+              .update({'fcm_token': fcmToken})
+              .eq('uid', currentUser.id);
+        }
+      } else {
+        _currentUser = null;
+      }
+    } catch (e) {
+      debugPrint("Lỗi tự động đăng nhập: $e");
       _currentUser = null;
     } finally {
-      _setLoading(false);
+      _isLoading = false;
+      notifyListeners();
     }
   }
 
@@ -118,32 +145,4 @@ class AuthProvider extends ChangeNotifier {
     return false; 
   }
 
-  Future<void> initAutoLogin() async {
-    try {
-      final currentUser = Supabase.instance.client.auth.currentUser;
-      if (currentUser != null) {
-        // Nạp thông tin chi tiết sinh viên từ bảng users dựa trên id session cũ
-        final userData = await Supabase.instance.client
-            .from('users')
-            .select()
-            .eq('uid', currentUser.id)
-            .single();
-            
-        // Gán dữ liệu đồng bộ 100% với hàm signIn gốc của bạn
-        _currentUser = UserModel.fromMap(userData);
-        
-        final fcmToken = await NotificationService.getFCMToken();
-          if (fcmToken != null && _currentUser != null) {
-            await Supabase.instance.client
-                .from('users')
-                .update({'fcm_token': fcmToken})
-                .eq('uid', _currentUser!.uid); // Ghi đè địa chỉ nhận tin lên tài khoản sinh viên
-          }
-
-        notifyListeners(); // Thông báo cho toàn app biết dữ liệu user đã được nạp xong
-      }
-    } catch (e) {
-      debugPrint("🚨 Lỗi nạp lại trạng thái AuthProvider: $e");
-    }
-  }
 }

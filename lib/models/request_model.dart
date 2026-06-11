@@ -1,63 +1,47 @@
 // lib/models/request_model.dart
-// TV2 — Thiết kế cấu trúc dữ liệu yêu cầu sinh viên (Task 2.2)
 
-import 'package:cloud_firestore/cloud_firestore.dart';
-
-// ─── Enum trạng thái yêu cầu ─────────────────────────────────────────────────
 enum RequestStatus { pending, processing, completed, rejected }
 
 extension RequestStatusX on RequestStatus {
-  // Nhãn hiển thị tiếng Việt
   String get label {
     switch (this) {
-      case RequestStatus.pending:
-        return 'Chờ tiếp nhận';
-      case RequestStatus.processing:
-        return 'Đang xử lý';
-      case RequestStatus.completed:
-        return 'Đã hoàn thành';
-      case RequestStatus.rejected:
-        return 'Bị từ chối';
+      case RequestStatus.pending: return 'Chờ tiếp nhận';
+      case RequestStatus.processing: return 'Đang xử lý';
+      case RequestStatus.completed: return 'Đã hoàn thành';
+      case RequestStatus.rejected: return 'Bị từ chối';
     }
   }
 
-  // Màu badge tương ứng (hex string)
   String get colorHex {
     switch (this) {
-      case RequestStatus.pending:
-        return '#FFA000'; // Amber
-      case RequestStatus.processing:
-        return '#1976D2'; // Blue
-      case RequestStatus.completed:
-        return '#388E3C'; // Green
-      case RequestStatus.rejected:
-        return '#D32F2F'; // Red
+      case RequestStatus.pending: return '#FFA000'; 
+      case RequestStatus.processing: return '#1976D2'; 
+      case RequestStatus.completed: return '#388E3C'; 
+      case RequestStatus.rejected: return '#D32F2F'; 
     }
   }
 }
 
-// ─── Model yêu cầu ───────────────────────────────────────────────────────────
-// Firestore path: /requests/{requestId}
 class RequestModel {
   final String id;
-  // Thông tin sinh viên tạo yêu cầu
   final String studentUid;
   final String studentName;
-  final String studentId;   // Mã số sinh viên
-  // Thông tin danh mục
+  final String studentId;   
   final String categoryId;
   final String categoryName;
-  // Nội dung yêu cầu
   final String reason;
-  final List<String> attachmentUrls; // URL ảnh đính kèm trên Firebase Storage
-  final List<String>? attachedFiles; // Thêm biến chứa danh sách file
-  // Trạng thái xử lý
+  final List<String> attachmentUrls; 
+  final List<String>? attachedFiles; 
   final RequestStatus status;
-  final String? note;       // Phản hồi từ Giáo vụ khoa
-  final String? staffUid;   // UID của cán bộ xử lý
-  // Timestamps
+  final String? note;       
+  final String? staffUid;   
   final DateTime createdAt;
   final DateTime updatedAt;
+
+  final String? subjectCode;
+  final DateTime? processedAt;
+  final DateTime? completedAt;
+  final DateTime? rejectedAt;
 
   const RequestModel({
     required this.id,
@@ -74,75 +58,62 @@ class RequestModel {
     this.attachedFiles,
     required this.createdAt,
     required this.updatedAt,
+    this.subjectCode,
+    this.processedAt,
+    this.completedAt,
+    this.rejectedAt,
   });
 
-  // ── Từ Firestore Document → RequestModel ───────────────────────────────────
-  factory RequestModel.fromDoc(DocumentSnapshot doc) {
-    final map = doc.data() as Map<String, dynamic>;
-    return RequestModel.fromMap(doc.id, map);
-  }
+  factory RequestModel.fromMap(Map<String, dynamic> map) {
+    DateTime parseDate(dynamic dateStr) {
+      if (dateStr == null) return DateTime.now();
+      return DateTime.tryParse(dateStr.toString()) ?? DateTime.now();
+    }
 
-  factory RequestModel.fromMap(String id, Map<String, dynamic> map) {
     return RequestModel(
-      id: id,
-      studentUid: map['studentUid'] as String? ?? '',
-      studentName: map['studentName'] as String? ?? '',
-      studentId: map['studentId'] as String? ?? '',
-      categoryId: map['categoryId'] as String? ?? '',
-      categoryName: map['categoryName'] as String? ?? '',
-      reason: map['reason'] as String? ?? '',
-      attachmentUrls: List<String>.from(map['attachmentUrls'] ?? []),
+      id: map['id']?.toString() ?? '',
+      studentUid: map['studentUid']?.toString() ?? '',
+      studentName: map['studentName']?.toString() ?? '',
+      studentId: map['studentId']?.toString() ?? '',
+      categoryId: map['categoryId']?.toString() ?? '',
+      categoryName: map['categoryName']?.toString() ?? '',
+      reason: map['reason']?.toString() ?? '',
+      attachmentUrls: map['attachmentUrls'] != null ? List<String>.from(map['attachmentUrls']) : [],
       status: RequestStatus.values.firstWhere(
         (s) => s.name == map['status'],
         orElse: () => RequestStatus.pending,
       ),
-      note: map['note'] as String?,
-      staffUid: map['staffUid'] as String?,
-      createdAt: (map['createdAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
-      updatedAt: (map['updatedAt'] as Timestamp?)?.toDate() ?? DateTime.now(),
+      note: map['note']?.toString(),
+      staffUid: map['staffUid']?.toString(),
+      createdAt: parseDate(map['createdAt']),
+      updatedAt: parseDate(map['updatedAt']),
       attachedFiles: map['attachedFiles'] != null ? List<String>.from(map['attachedFiles']) : [],
+      subjectCode: map['subjectCode']?.toString(),
+      processedAt: map['processedAt'] != null ? DateTime.tryParse(map['processedAt'].toString()) : null,
+      completedAt: map['completedAt'] != null ? DateTime.tryParse(map['completedAt'].toString()) : null,
+      rejectedAt: map['rejectedAt'] != null ? DateTime.tryParse(map['rejectedAt'].toString()) : null,
     );
   }
 
-  // ── RequestModel → Map để lưu lên Firestore ────────────────────────────────
   Map<String, dynamic> toMap() {
     return {
       'studentUid': studentUid,
       'studentName': studentName,
       'studentId': studentId,
-      'categoryId': categoryId,
+      'categoryId': int.tryParse(categoryId.toString()) ?? 1, 
       'categoryName': categoryName,
       'reason': reason,
       'attachmentUrls': attachmentUrls,
       'status': status.name,
       'note': note,
       'staffUid': staffUid,
-      'createdAt': Timestamp.fromDate(createdAt),
-      'updatedAt': Timestamp.fromDate(updatedAt),
-      'attachedFiles': attachedFiles, // Thêm dòng này để đẩy file lên DB
+      'createdAt': createdAt.toIso8601String(),
+      'updatedAt': updatedAt.toIso8601String(),
+      'attachedFiles': attachedFiles,
+      'subjectCode': subjectCode,
+      'processedAt': processedAt?.toIso8601String(),
+      'completedAt': completedAt?.toIso8601String(),
+      'rejectedAt': rejectedAt?.toIso8601String(),
     };
-  }
-
-  // ── Cập nhật trạng thái (Giáo vụ dùng) ────────────────────────────────────
-  RequestModel copyWithStatus({
-    required RequestStatus status,
-    required String staffUid,
-    String? note,
-  }) {
-    return RequestModel(
-      id: id,
-      studentUid: studentUid,
-      studentName: studentName,
-      studentId: studentId,
-      categoryId: categoryId,
-      categoryName: categoryName,
-      reason: reason,
-      attachmentUrls: attachmentUrls,
-      status: status,
-      note: note ?? this.note,
-      staffUid: staffUid,
-      createdAt: createdAt,
-      updatedAt: DateTime.now(),
-    );
   }
 }
