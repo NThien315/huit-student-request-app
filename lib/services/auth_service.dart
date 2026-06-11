@@ -39,4 +39,36 @@ class AuthService {
   Future<void> signOut() async {
     await _supabase.auth.signOut();
   }
+
+  // ─── CẤP TÀI KHOẢN GIÁO VỤ ───
+  Future<void> createStaffAccount({
+    required String email,
+    required String password,
+    required String fullName,
+    required String staffId,
+    required String role, // 'staff' hoặc 'admin'
+  }) async {
+    try {
+      // 1. Tạo user trong hệ thống Supabase Auth (Đăng ký tài khoản ngầm)
+      final AuthResponse response = await _supabase.auth.signUp(
+        email: email,
+        password: password,
+      );
+
+      final String? newUid = response.user?.id;
+
+      if (newUid != null) {
+        // 2. Chèn thông tin chi tiết của Giáo vụ vào bảng 'users' trong Database
+        await _supabase.from('users').insert({
+          'uid': newUid,
+          'email': email,
+          'name': fullName,
+          'studentId': staffId,
+          'role': role,
+        });
+      }
+    } catch (e) {
+      throw Exception('Lỗi cấp tài khoản giáo vụ: $e');
+    }
+  }
 }

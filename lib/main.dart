@@ -1,6 +1,7 @@
 // lib/main.dart
 import 'package:flutter/material.dart';
 import 'package:firebase_core/firebase_core.dart';
+import 'package:huit_student_request_app/ui/screens/auth/web_login_screen.dart';
 import 'package:provider/provider.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
@@ -16,20 +17,22 @@ void main() async {
   // 1. Khởi tạo Supabase
   await Supabase.initialize(
     url: 'https://eqiwsekizowaklmxghkw.supabase.co',
-    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaXdzZWtpem93YWtsbXhnaGt3Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3Nzg2NzY2NzEsImV4cCI6MjA5NDI1MjY3MX0.ZrzgIpOa474j7kn_gOHIdPBykig4XiU2Wt3Gd3hpCnk',
+    anonKey: 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6ImVxaXdzZWtpem93YWtsbXhnaGt3Iiwicm9sZSI6InNlcnZpY2Vfcm9sZSIsImlhdCI6MTc3ODY3NjY3MSwiZXhwIjoyMDk0MjUyNjcxfQ.R7hv-o3NUTbI1W0CnIM29gGRXOdV9nZUF5Q9TNt9bfs',
   );
 
-  // 2. Khởi tạo Firebase (Dùng cho Push Notification)
-  await Firebase.initializeApp(
-    options: DefaultFirebaseOptions.currentPlatform,
-  );
-
-  // 3. Khởi tạo Dịch vụ Thông báo
+  // 2. Khởi tạo Firebase không chặn luồng
   try {
-    await NotificationService.initNotification();
+    await Firebase.initializeApp(
+      options: DefaultFirebaseOptions.currentPlatform,
+    );
   } catch (e) {
-    debugPrint("Bỏ qua lỗi khởi tạo Notification: $e");
+    debugPrint('Lỗi khởi tạo Firebase (Web): $e');
   }
+
+  // 3. Khởi tạo Thông báo NHƯNG KHÔNG CHẶN luồng chính
+  NotificationService.initNotification().catchError((e) {
+    debugPrint("Bỏ qua lỗi khởi tạo Notification: $e");
+  });
 
   runApp(const HdpeApp());
 }
@@ -48,8 +51,17 @@ class HdpeApp extends StatelessWidget {
         debugShowCheckedModeBanner: false,
         theme: AppTheme.lightTheme, 
         
-        home: const SplashScreen(), 
+        home: LayoutBuilder(
+          builder: (context, constraints) {
+            if (constraints.maxWidth > 800) {
+              return const WebLoginScreen(); 
+            } else {
+              return const SplashScreen(); 
+            }
+          },
+        ),
       ),
     );
   }
 }
+

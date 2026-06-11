@@ -1,6 +1,9 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
+import 'package:huit_student_request_app/services/db_service.dart';
 import 'package:huit_student_request_app/ui/screens/auth/login_screen.dart';
+import 'package:huit_student_request_app/ui/widgets/glass_toast.dart';
+import 'package:image_picker/image_picker.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:provider/provider.dart';
 import '../../../core/theme.dart';
@@ -107,19 +110,37 @@ class _ProfileScreenState extends State<ProfileScreen> {
 
                   return Column(
                     children: [
-                      CircleAvatar(
-                        radius: 50,
-                        backgroundColor: AppColors.white,
+                      GestureDetector(
+                        onTap: () async {
+                          // 📸 CHỨC NĂNG SỬA/THÊM ẢNH
+                          final picker = ImagePicker();
+                          final pickedFile = await picker.pickImage(source: ImageSource.gallery, imageQuality: 70);
+                          if (pickedFile != null && authUser != null) {
+                            String? url = await DbService().uploadFileToStorage(pickedFile.path, 'avatars/${authUser!.id}');
+                            if (url != null) {
+                              await Supabase.instance.client.from('users').update({'avatar_url': url}).eq('uid', authUser!.id);
+                              setState(() { _loadUserProfile(); }); 
+                              if (context.mounted) GlassToast.show(context, 'Cập nhật ảnh đại diện thành công!');
+                            }
+                          }
+                        },
+                        onLongPress: () async {
+                          // 🗑️ CHỨC NĂNG XÓA ẢNH (NHẤN GIỮ LÂU VÀO ẢNH)
+                          final String? currentAvatar = snapshot.data?['avatar_url'];
+                          if (currentAvatar != null && currentAvatar.isNotEmpty && authUser != null) {
+                            await Supabase.instance.client.from('users').update({'avatar_url': null}).eq('uid', authUser!.id);
+                            setState(() { _loadUserProfile(); });
+                            if (context.mounted) GlassToast.show(context, 'Đã gỡ bỏ ảnh đại diện.');
+                          }
+                        },
                         child: CircleAvatar(
-                          radius: 46,
-                          backgroundColor: AppColors.lightSV,
-                          child: ClipOval(
-                            child: Image.asset(
-                              'assets/images/default_avatar.jpg',
-                              fit: BoxFit.cover,
-                              width: 92,
-                              height: 92,
-                              errorBuilder: (context, error, stackTrace) => const Icon(Icons.person, size: 50, color: AppColors.primarySV),
+                          radius: 50, backgroundColor: AppColors.white,
+                          child: CircleAvatar(
+                            radius: 46, backgroundColor: AppColors.lightSV,
+                            child: ClipOval(
+                              child: (snapshot.data?['avatar_url'] != null && snapshot.data!['avatar_url'].toString().isNotEmpty)
+                                  ? Image.network(snapshot.data!['avatar_url'], fit: BoxFit.cover, width: 92, height: 92, errorBuilder: (c, e, s) => const Icon(Icons.person, size: 50, color: AppColors.primarySV))
+                                  : Image.asset('assets/images/default_avatar.jpg', fit: BoxFit.cover, width: 92, height: 92, errorBuilder: (c, e, s) => const Icon(Icons.person, size: 50, color: AppColors.primarySV)),
                             ),
                           ),
                         ),
@@ -139,51 +160,60 @@ class _ProfileScreenState extends State<ProfileScreen> {
             ),
             const SizedBox(height: 20),
 
-            // ─── DANH SÁCH MENU ───
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-              child: Column(
-                children: [
-                  _buildFlatMenu('Thông tin cá nhân', Icons.person_outline, () {
-                    Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalInfoScreen())).then((_) {
-                      // Load lại Header nếu bên kia có update thông tin
-                      setState(() => _loadUserProfile());
-                    });
-                  }),
-                  _buildFlatMenu('Quy định học vụ', Icons.school_outlined, () {}),
-                  // Đổi tính năng theo yêu cầu
-                  _buildFlatMenu('Thông tin ứng dụng', Icons.info_outline, () => _showAppInfoDialog(context), isLast: true),
-                ],
+            // ─── DANH SÁCH MENU 1 ───
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Material(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    _buildFlatMenu('Thông tin cá nhân', Icons.person_outline, () {
+                      Navigator.push(context, MaterialPageRoute(builder: (context) => const PersonalInfoScreen())).then((_) {
+                        // Load lại Header nếu bên kia có update thông tin
+                        setState(() => _loadUserProfile());
+                      });
+                    }),
+                    _buildFlatMenu('Quy định học vụ', Icons.school_outlined, () {}),
+                    _buildFlatMenu('Thông tin ứng dụng', Icons.info_outline, () => _showAppInfoDialog(context), isLast: true),
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 16),
 
-            Container(
-              margin: const EdgeInsets.symmetric(horizontal: 16),
-              decoration: BoxDecoration(color: AppColors.white, borderRadius: BorderRadius.circular(16)),
-              child: Column(
-                children: [
-                  Padding(
-                    padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
-                    child: Row(
-                      children: [
-                        const Icon(Icons.notifications_active_outlined, color: AppColors.primarySV),
-                        const SizedBox(width: 16),
-                        const Text('Nhận thông báo', style: TextStyle(fontSize: 15, color: AppColors.gray900, fontWeight: FontWeight.w500)),
-                        const Spacer(),
-                        Switch(
-                          value: _notifEnabled,
-                          activeThumbColor: AppColors.primarySV,
-                          onChanged: _toggleNotification, // Gọi hàm toggle có logic DB
-                        ),
-                      ],
+            // ─── DANH SÁCH MENU 2 ───
+            Padding(
+              padding: const EdgeInsets.symmetric(horizontal: 16),
+              child: Material(
+                color: AppColors.white,
+                borderRadius: BorderRadius.circular(16),
+                clipBehavior: Clip.antiAlias,
+                child: Column(
+                  children: [
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 20, vertical: 6),
+                      child: Row(
+                        children: [
+                          const Icon(Icons.notifications_active_outlined, color: AppColors.primarySV),
+                          const SizedBox(width: 16),
+                          const Text('Nhận thông báo', style: TextStyle(fontSize: 15, color: AppColors.gray900, fontWeight: FontWeight.w500)),
+                          const Spacer(),
+                          Switch(
+                            value: _notifEnabled,
+                            activeThumbColor: AppColors.primarySV,
+                            onChanged: _toggleNotification, // Gọi hàm toggle có logic DB
+                          ),
+                        ],
+                      ),
                     ),
-                  ),
-                  const Divider(indent: 56, height: 1),
-                  _buildFlatMenu('Góp ý ứng dụng', Icons.chat_bubble_outline, () {}),
-                  _buildFlatMenu('Điều khoản & Chính sách', Icons.shield_outlined, () {}, isLast: true),
-                ],
+                    const Divider(indent: 56, height: 1),
+                    _buildFlatMenu('Góp ý ứng dụng', Icons.chat_bubble_outline, () {}),
+                    _buildFlatMenu('Điều khoản & Chính sách', Icons.shield_outlined, () {}),
+                    _buildFlatMenu('Đổi mật khẩu', Icons.lock, () => _showChangePasswordDialog(context), isLast: true)
+                  ],
+                ),
               ),
             ),
             const SizedBox(height: 32),
@@ -255,8 +285,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundColor: AppColors.lightSV,
                   child: Text('T', style: TextStyle(color: AppColors.primarySV, fontWeight: FontWeight.bold)),
                 ),
-                title: Text('Lê Nhật Thiện', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.gray900)),
-                subtitle: Text('Trưởng nhóm / Lập trình Frontend Web, App Mobile & Logic hệ thống', style: TextStyle(fontSize: 12)),
+                title: Text('Lê Nhật Thiện', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.gray900), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('Trưởng nhóm / Lập trình Frontend Web, App Mobile & Logic hệ thống', style: TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
               Divider(height: 16, color: AppColors.gray100),
               
@@ -267,8 +297,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundColor: AppColors.warningLight,
                   child: Text('Tr', style: TextStyle(color: AppColors.warning, fontWeight: FontWeight.bold)),
                 ),
-                title: Text('Võ Xuân Trường', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.gray900)),
-                subtitle: Text('Thành viên / Quản trị Backend, Cơ sở dữ liệu Supabase & Bảo mật mạng', style: TextStyle(fontSize: 12)),
+                title: Text('Võ Xuân Trường', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.gray900), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('Thành viên / Quản trị Backend, Cơ sở dữ liệu Supabase & Bảo mật mạng', style: TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
               Divider(height: 16, color: AppColors.gray100),
               
@@ -279,8 +309,8 @@ class _ProfileScreenState extends State<ProfileScreen> {
                   backgroundColor: AppColors.successLight,
                   child: Text('N', style: TextStyle(color: AppColors.success, fontWeight: FontWeight.bold)),
                 ),
-                title: Text('Trần Tiến Hoài Nam', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.gray900)),
-                subtitle: Text('Thành viên / Phân tích yêu cầu hệ thống & Chủ trì biên soạn báo cáo', style: TextStyle(fontSize: 12)),
+                title: Text('Trần Tiến Hoài Nam', style: TextStyle(fontWeight: FontWeight.bold, fontSize: 14.5, color: AppColors.gray900), maxLines: 1, overflow: TextOverflow.ellipsis),
+                subtitle: Text('Thành viên / Phân tích yêu cầu hệ thống & Chủ trì biên soạn báo cáo', style: TextStyle(fontSize: 12), maxLines: 2, overflow: TextOverflow.ellipsis),
               ),
             ],
           ),
@@ -291,6 +321,80 @@ class _ProfileScreenState extends State<ProfileScreen> {
             child: const Text('Đóng', style: TextStyle(color: AppColors.primarySV, fontWeight: FontWeight.bold))
           ),
         ],
+      ),
+    );
+  }
+
+  // ─── POPUP ĐỔI MẬT KHẨU ───
+  void _showChangePasswordDialog(BuildContext context) {
+    final oldPwCtrl = TextEditingController();
+    final newPwCtrl = TextEditingController();
+    final confirmPwCtrl = TextEditingController();
+    bool obsOld = true; bool obsNew = true; bool obsConfirm = true;
+    bool isProcessing = false;
+
+    InputDecoration deco(String label, bool isObs, VoidCallback toggle) => InputDecoration(
+      labelText: label, filled: true, fillColor: AppColors.gray100,
+      border: OutlineInputBorder(borderRadius: BorderRadius.circular(16), borderSide: BorderSide.none),
+      suffixIcon: IconButton(icon: Icon(isObs ? Icons.visibility_off : Icons.visibility, color: AppColors.gray500), onPressed: toggle),
+    );
+
+    showDialog(
+      context: context,
+      barrierDismissible: false,
+      builder: (context) => StatefulBuilder(
+        builder: (context, setDialogState) => Dialog(
+          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(24)),
+          child: Padding(
+            padding: const EdgeInsets.all(24.0),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                const Text('Đổi Mật Khẩu', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold, color: AppColors.primarySV)),
+                const SizedBox(height: 20),
+                TextField(controller: oldPwCtrl, obscureText: obsOld, decoration: deco('Mật khẩu hiện tại', obsOld, () => setDialogState(() => obsOld = !obsOld))),
+                const SizedBox(height: 12),
+                TextField(controller: newPwCtrl, obscureText: obsNew, decoration: deco('Mật khẩu mới (Tối thiểu 6 ký tự)', obsNew, () => setDialogState(() => obsNew = !obsNew))),
+                const SizedBox(height: 12),
+                TextField(controller: confirmPwCtrl, obscureText: obsConfirm, decoration: deco('Xác nhận mật khẩu mới', obsConfirm, () => setDialogState(() => obsConfirm = !obsConfirm))),
+                const SizedBox(height: 24),
+                Row(
+                  children: [
+                    Expanded(child: OutlinedButton(onPressed: isProcessing ? null : () => Navigator.pop(context), style: OutlinedButton.styleFrom(padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))), child: const Text('Hủy', style: TextStyle(color: AppColors.gray500, fontWeight: FontWeight.bold)))),
+                    const SizedBox(width: 12),
+                    Expanded(
+                      child: ElevatedButton(
+                        style: ElevatedButton.styleFrom(backgroundColor: AppColors.primarySV, padding: const EdgeInsets.symmetric(vertical: 14), shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12))),
+                        onPressed: isProcessing ? null : () async {
+                          if (oldPwCtrl.text.isEmpty || newPwCtrl.text.isEmpty) { GlassToast.show(context, 'Vui lòng nhập đầy đủ!', isError: true); return; }
+                          if (newPwCtrl.text != confirmPwCtrl.text) { GlassToast.show(context, 'Mật khẩu xác nhận không khớp!', isError: true); return; }
+                          if (newPwCtrl.text.length < 6) { GlassToast.show(context, 'Mật khẩu mới phải từ 6 ký tự!', isError: true); return; }
+                          
+                          setDialogState(() => isProcessing = true);
+                          try {
+                            final client = Supabase.instance.client;
+                            final email = client.auth.currentUser!.email!;
+                            await client.auth.signInWithPassword(email: email, password: oldPwCtrl.text);
+                            await client.auth.updateUser(UserAttributes(password: newPwCtrl.text));
+                            
+                            if (!context.mounted) return;
+                            Navigator.pop(context);
+                            GlassToast.show(context, 'Đổi mật khẩu thành công!');
+                          } catch (e) {
+                            setDialogState(() => isProcessing = false);
+                            if (!context.mounted) return;
+                            GlassToast.show(context, 'Mật khẩu hiện tại không chính xác!', isError: true);
+                          }
+                        },
+                        child: isProcessing ? const SizedBox(width: 20, height: 20, child: CircularProgressIndicator(color: Colors.white, strokeWidth: 2)) : const Text('Lưu', style: TextStyle(color: Colors.white, fontWeight: FontWeight.bold)),
+                      ),
+                    ),
+                  ],
+                )
+              ],
+            ),
+          ),
+        ),
       ),
     );
   }
@@ -314,7 +418,7 @@ class _ProfileScreenState extends State<ProfileScreen> {
               const SizedBox(height: 20),
               const Text('Đăng xuất tài khoản?', style: TextStyle(fontSize: 20, fontWeight: FontWeight.bold)),
               const SizedBox(height: 12),
-              const Text('Bạn sẽ không nhận được thông báo tiến độ đơn từ hệ thống nữa.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 14)),
+              const Text('Bạn sẽ không nhận được thông báo tiến độ yêu cầu hệ thống nữa.', textAlign: TextAlign.center, style: TextStyle(color: Colors.grey, fontSize: 14)),
               const SizedBox(height: 24),
               Row(
                 children: [

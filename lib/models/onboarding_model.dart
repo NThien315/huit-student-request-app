@@ -15,7 +15,7 @@ List<OnboardingContent> contents = [
   OnboardingContent(
     title: 'Theo dõi tiến độ Realtime',
     image: 'assets/images/onboarding_2.png',
-    description: "Cập nhật trạng thái xử lý đơn từ 'Chờ tiếp nhận' đến 'Hoàn thành' theo thời gian thực."
+    description: "Cập nhật trạng thái xử lý yêu cầu 'Chờ tiếp nhận' đến 'Hoàn thành' theo thời gian thực."
   ),
   OnboardingContent(
     title: 'Cập nhật tin tức mới nhất',

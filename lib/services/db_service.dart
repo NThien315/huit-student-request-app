@@ -1,6 +1,7 @@
 import 'dart:io';
 import 'package:flutter/material.dart';
-import 'package:huit_student_request_app/models/notification_model.dart';
+import 'package:huit_student_request_app/models/notification_model.dart'; // Giữ nguyên import này
+import 'package:huit_student_request_app/services/auth_service.dart'; // Thêm import AuthService
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../models/request_model.dart';
 import '../models/category_model.dart';
@@ -16,11 +17,10 @@ class DbService {
       final fileName = filePath.split('/').last;
       final path = 'uploads/$uid/${DateTime.now().millisecondsSinceEpoch}_$fileName';
 
-      // Upload vào bucket 'request_attachments'
-      await _supabase.storage.from('request_attachments').upload(path, file);
+      await _supabase.storage.from('attachments').upload(path, file);
 
       // Lấy link URL công khai
-      return _supabase.storage.from('request_attachments').getPublicUrl(path);
+      return _supabase.storage.from('attachments').getPublicUrl(path);
     } catch (e) {
       debugPrint("Lỗi tải file lên Supabase: $e");
       return null;
@@ -33,6 +33,7 @@ class DbService {
   Future<void> createRequest(RequestModel request) async {
     try {
       await _supabase.from('requests').insert(request.toMap());
+      await logAudit('CREATE', 'Request', 'Created new request: ${request.id} by ${request.studentName}');
     } catch (e) {
       throw Exception('Lỗi khi tạo yêu cầu: $e');
     }
@@ -94,6 +95,7 @@ class DbService {
           .from('requests')
           .update({'status': newStatus})
           .eq('id', requestId);
+      await logAudit('UPDATE', 'Request', 'Updated request ${requestId} status to ${newStatus}');
     } catch (e) {
       debugPrint("Lỗi cập nhật trạng thái đơn trên Supabase: $e");
       rethrow; // Đẩy lỗi ra ngoài để trang Chi tiết bắt được và hiện GlassToast
@@ -125,5 +127,23 @@ class DbService {
         .update({'isRead': true})
         .eq('studentUid', studentUid)
         .eq('isRead', false);
+  }
+
+  // Public method for audit logging
+  Future<void> logAudit(String action, String target, String details) async {
+    try {
+      final user = AuthService().currentUser; // Lấy thông tin người đang thao tác từ AuthService
+      UserModel? appUser;
+      if (user != null) appUser = await getUserData(user.id); // Lấy UserModel để có thuộc tính 'name'
+      await Supabase.instance.client.from('audit_logs').insert({
+        'actor_name': appUser?.name ?? 'Ẩn danh', // Sử dụng name từ UserModel
+        'actor_email': appUser?.email ?? user?.email ?? 'Không rõ', // Ưu tiên email từ UserModel, nếu không có thì dùng từ Supabase User
+        'action_type': action,
+        'target_name': target,
+        'details': details,
+      });
+    } catch (e) {
+      debugPrint('Lỗi ghi log: $e');
+    }
   }
 }

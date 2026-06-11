@@ -1,5 +1,6 @@
 // lib/ui/screens/student/notification_screen.dart
 import 'package:flutter/material.dart';
+import 'package:huit_student_request_app/models/notification_model.dart';
 import 'package:huit_student_request_app/services/auth_service.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../../core/theme.dart';
@@ -12,29 +13,26 @@ class NotificationScreen extends StatefulWidget {
 }
 
 class _NotificationScreenState extends State<NotificationScreen> {
-  // Thêm biến quản lý Tab hiện tại
   int _selectedTab = 0;
 
-  // Hàm cập nhật trạng thái đã đọc đơn lên Supabase khi nhấn xem
+  // FIX: Đồng bộ cột is_read theo Database mới
   Future<void> _markAsRead(String notifId) async {
     await Supabase.instance.client
         .from('notifications')
-        .update({'isRead': true})
+        .update({'is_read': true}) // Sửa từ isRead -> is_read
         .eq('id', notifId);
   }
 
-  // Hàm đánh dấu đã đọc toàn bộ danh sách đơn
+  // FIX: Đồng bộ cột student_uid và is_read theo Database mới
   Future<void> _markAllAsRead(String studentUid) async {
     await Supabase.instance.client
         .from('notifications')
-        .update({'isRead': true})
-        .eq('studentUid', studentUid)
-        .eq('isRead', false);
+        .update({'is_read': true})      // Sửa từ isRead -> is_read
+        .eq('student_uid', studentUid)  // Sửa từ studentUid -> student_uid
+        .eq('is_read', false);          // Sửa từ isRead -> is_read
   }
 
-  String _formatDateTime(String? isoString) {
-    if (isoString == null) return 'Vừa xong';
-    final date = DateTime.parse(isoString).toLocal();
+  String _formatDateTime(DateTime date) {
     return "${date.hour.toString().padLeft(2, '0')}:${date.minute.toString().padLeft(2, '0')} - ${date.day}/${date.month}";
   }
 
@@ -42,7 +40,6 @@ class _NotificationScreenState extends State<NotificationScreen> {
   Widget build(BuildContext context) {
     final currentUser = AuthService().currentUser;
 
-    // ĐÃ XÓA DefaultTabController, chỉ dùng Scaffold bình thường
     return Scaffold(
       backgroundColor: AppColors.white,
       appBar: AppBar(
@@ -61,36 +58,38 @@ class _NotificationScreenState extends State<NotificationScreen> {
           ),
           const SizedBox(width: 8),
         ],
-        // Đã xóa thuộc tính bottom: PreferredSize (chứa TabBar cũ)
       ),
-      
-      // 3. Dùng Column để xếp Thanh trượt lên trên Danh sách thông báo
       body: Column(
         children: [
           Padding(
             padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
-            child: _buildSegmentedControl(), // Gọi hàm vẽ thanh trượt
+            child: _buildSegmentedControl(),
           ),
           
           Expanded(
             child: currentUser == null 
               ? const Center(child: Text('Vui lòng đăng nhập'))
               : StreamBuilder<List<Map<String, dynamic>>>(
+                  // FIX STREAM: Lắng nghe và lọc theo cột student_uid và created_at mới
                   stream: Supabase.instance.client
                       .from('notifications')
                       .stream(primaryKey: ['id'])
-                      .eq('studentUid', currentUser.id)
-                      .order('createdAt', ascending: false),
+                      .eq('student_uid', currentUser.id) // Sửa từ studentUid -> student_uid
+                      .order('created_at', ascending: false), // Sửa từ createdAt -> created_at
                   builder: (context, snapshot) {
                     if (snapshot.connectionState == ConnectionState.waiting) {
                       return const Center(child: CircularProgressIndicator(color: AppColors.primarySV));
                     }
                     
-                    final allNotifs = snapshot.data ?? [];
-                    // Lọc danh sách ngay tại đây dựa vào Tab đang chọn
+                    final List<Map<String, dynamic>> rawData = snapshot.data ?? [];
+                    
+                    // MAP QUA MODEL: Ép kiểu sang NotificationModel để sử dụng logic phân loại thông minh
+                    final List<NotificationModel> allModels = rawData.map((map) => NotificationModel.fromMap(map)).toList();
+                    
+                    // Lọc theo tab hiện tại
                     final filteredNotifs = _selectedTab == 0 
-                        ? allNotifs 
-                        : allNotifs.where((n) => n['isRead'] == false).toList();
+                        ? allModels 
+                        : allModels.where((n) => n.isRead == false).toList();
 
                     return _buildNotificationList(filteredNotifs);
                   },
@@ -101,7 +100,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     );
   }
 
-  Widget _buildNotificationList(List<Map<String, dynamic>> notifs) {
+  Widget _buildNotificationList(List<NotificationModel> notifs) {
     if (notifs.isEmpty) {
       return Center(
         child: Column(
@@ -121,19 +120,15 @@ class _NotificationScreenState extends State<NotificationScreen> {
       itemBuilder: (context, index) {
         final notif = notifs[index];
         
-        Color color = AppColors.primarySV;
-        IconData icon = Icons.notifications_rounded;
-        
-        if (notif['type'] == 'success') { color = AppColors.success; icon = Icons.check_circle_rounded; }
-        if (notif['type'] == 'warning') { color = AppColors.warning; icon = Icons.info_rounded; }
-        if (notif['type'] == 'danger') { color = AppColors.danger; icon = Icons.cancel_rounded; }
-
-        final bool isUnread = notif['isRead'] == false;
+        // SỬ DỤNG TRỰC TIẾP TÍNH NĂNG TỰ ĐỘNG CỦA MODEL
+        Color color = notif.color;
+        IconData icon = notif.icon;
+        final bool isUnread = !notif.isRead;
 
         return GestureDetector(
           onTap: () {
-            if (isUnread) _markAsRead(notif['id']);
-            _showNotificationDetails(context, notif['title'], notif['body'], icon, color);
+            if (isUnread) _markAsRead(notif.id);
+            _showNotificationDetails(context, notif.title, notif.body, icon, color);
           },
           child: AnimatedContainer(
             duration: const Duration(milliseconds: 200),
@@ -167,7 +162,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         children: [
                           Expanded(
                             child: Text(
-                              notif['title'] ?? '', 
+                              notif.title, 
                               style: TextStyle(fontWeight: isUnread ? FontWeight.bold : FontWeight.w600, fontSize: 14.5, color: AppColors.gray900)
                             ),
                           ),
@@ -175,9 +170,9 @@ class _NotificationScreenState extends State<NotificationScreen> {
                         ],
                       ),
                       const SizedBox(height: 6),
-                      Text(notif['body'] ?? '', maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: AppColors.gray500, height: 1.4)),
+                      Text(notif.body, maxLines: 2, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 13, color: AppColors.gray500, height: 1.4)),
                       const SizedBox(height: 10),
-                      Text(_formatDateTime(notif['createdAt']), style: const TextStyle(fontSize: 11, color: AppColors.gray500, fontWeight: FontWeight.w500)),
+                      Text(_formatDateTime(notif.createdAt), style: const TextStyle(fontSize: 11, color: AppColors.gray500, fontWeight: FontWeight.w500)),
                     ],
                   ),
                 )
@@ -230,10 +225,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
     return Container(
       height: 50,
       padding: const EdgeInsets.all(4),
-      decoration: BoxDecoration(
-        color: AppColors.gray100,
-        borderRadius: BorderRadius.circular(14),
-      ),
+      decoration: BoxDecoration(color: AppColors.gray100, borderRadius: BorderRadius.circular(14)),
       child: LayoutBuilder(
         builder: (context, constraints) {
           double width = constraints.maxWidth / 2; 
@@ -243,16 +235,12 @@ class _NotificationScreenState extends State<NotificationScreen> {
                 duration: const Duration(milliseconds: 250),
                 curve: Curves.easeInOut,
                 left: _selectedTab * width,
-                top: 0,
-                bottom: 0,
-                width: width,
+                top: 0, bottom: 0, width: width,
                 child: Container(
                   decoration: BoxDecoration(
                     color: Colors.white,
                     borderRadius: BorderRadius.circular(10),
-                    boxShadow: [
-                      BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))
-                    ],
+                    boxShadow: [BoxShadow(color: Colors.black.withValues(alpha: 0.05), blurRadius: 4, offset: const Offset(0, 2))],
                   ),
                 ),
               ),
@@ -276,14 +264,7 @@ class _NotificationScreenState extends State<NotificationScreen> {
         onTap: () => setState(() => _selectedTab = index),
         behavior: HitTestBehavior.opaque,
         child: Center(
-          child: Text(
-            title,
-            style: TextStyle(
-              fontSize: 14,
-              fontWeight: FontWeight.bold,
-              color: isSelected ? AppColors.primarySV : AppColors.gray500,
-            ),
-          ),
+          child: Text(title, style: TextStyle(fontSize: 14, fontWeight: FontWeight.bold, color: isSelected ? AppColors.primarySV : AppColors.gray500)),
         ),
       ),
     );
